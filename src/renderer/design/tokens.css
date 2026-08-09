@@ -1,0 +1,85 @@
+:root {
+  --color-bg: #f7f7f8;
+  --color-bg-subtle: #f0f0f2;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f8f8fa;
+  --color-border: #e1e1e6;
+  --color-border-strong: #c9c9d1;
+  --color-text: #1d1c1d;
+  --color-text-muted: #69676b;
+  --color-text-subtle: #99979c;
+  --color-text-inverse: #ffffff;
+
+  --color-accent: #611f69;
+  --color-accent-hover: #4a154b;
+  --color-accent-subtle: #f3e8f5;
+  --color-accent-text: #ffffff;
+
+  --color-danger: #e01e5a;
+  --color-danger-hover: #c4174e;
+  --color-danger-subtle: #fce8ef;
+
+  --color-success: #2eb67d;
+  --color-success-subtle: #e5f7f0;
+
+  --color-warning: #ecb22e;
+  --color-warning-subtle: #fff7df;
+
+  --color-info: #36c5f0;
+  --color-info-subtle: #e5f8fd;
+
+  --color-focus-ring: rgba(97, 31, 105, 0.35);
+
+  --font-family:
+    'SF Pro Text', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-display: 'SF Pro Display', var(--font-family);
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1.0625rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.65;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgba(29, 28, 29, 0.06);
+  --shadow-md: 0 4px 12px rgba(29, 28, 29, 0.08);
+  --shadow-lg: 0 12px 32px rgba(29, 28, 29, 0.12);
+
+  --topbar-height: 52px;
+  --sidebar-width: 240px;
+  --sidebar-width-narrow: 200px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+
+  --z-modal: 100;
+  --z-modal-backdrop: 90;
+}

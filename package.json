@@ -8,7 +8,7 @@
     "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});\"",
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json",
-    "build:renderer": "tsc -p tsconfig.renderer.json && node -e \"const fs=require('fs');const path=require('path');const out='dist/renderer';fs.mkdirSync(out,{recursive:true});fs.copyFileSync('src/renderer/index.html',path.join(out,'index.html'));fs.copyFileSync('src/renderer/styles.css',path.join(out,'styles.css'));\"",
+    "build:renderer": "tsc -p tsconfig.renderer.json && node -e \"const fs=require('fs');const path=require('path');const out='dist/renderer';fs.mkdirSync(out,{recursive:true});fs.mkdirSync(path.join(out,'design'),{recursive:true});fs.mkdirSync(path.join(out,'components'),{recursive:true});fs.copyFileSync('src/renderer/index.html',path.join(out,'index.html'));fs.copyFileSync('src/renderer/styles.css',path.join(out,'styles.css'));fs.copyFileSync('src/renderer/design/tokens.css',path.join(out,'design/tokens.css'));fs.copyFileSync('src/renderer/components/components.css',path.join(out,'components/components.css'));\"",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
     "typecheck": "npm run typecheck:main && npm run typecheck:preload && npm run typecheck:renderer",

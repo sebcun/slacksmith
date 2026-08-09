@@ -1,19 +1,40 @@
+import { createButton } from '../components/index.js';
+
 function setAppInfoMessage(element: HTMLElement, message: string): void {
   element.textContent = message;
 }
 
-export async function renderHomePage(container: HTMLElement): Promise<void> {
-  container.innerHTML = `
-    <main class="home-page">
-      <h1>SlackSmith</h1>
-      <p id="app-info" class="app-info">Loading app info…</p>
-    </main>
-  `;
+export async function renderHomePage(
+  container: HTMLElement,
+  onOpenComponents: () => void,
+): Promise<void> {
+  container.replaceChildren();
 
-  const infoElement = container.querySelector<HTMLElement>('#app-info');
-  if (!infoElement) {
-    return;
-  }
+  const main = document.createElement('main');
+  main.className = 'home-page';
+
+  const title = document.createElement('h1');
+  title.textContent = 'SlackSmith';
+  main.appendChild(title);
+
+  const infoElement = document.createElement('p');
+  infoElement.id = 'app-info';
+  infoElement.className = 'app-info';
+  infoElement.textContent = 'Loading app info…';
+  main.appendChild(infoElement);
+
+  const actions = document.createElement('div');
+  actions.className = 'home-page__actions';
+  actions.appendChild(
+    createButton({
+      label: 'Components',
+      variant: 'secondary',
+      onClick: onOpenComponents,
+    }),
+  );
+  main.appendChild(actions);
+
+  container.appendChild(main);
 
   if (!window.electronAPI?.getAppInfo) {
     setAppInfoMessage(
