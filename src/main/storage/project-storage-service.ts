@@ -4,6 +4,10 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import {
+  isDuplicateProjectName,
+  validateProjectName,
+} from '../../shared/domain/project-name-validation';
+import {
   PROJECT_FILE_NAME,
   PROJECT_SUBDIRS,
   type ProjectFile,
@@ -22,10 +26,6 @@ import {
 
 interface ProjectRegistryFile {
   externalPaths: string[];
-}
-
-function isNonEmptyString(value: string): boolean {
-  return value.trim().length > 0;
 }
 
 function isValidProjectFile(value: unknown): value is ProjectFile {
@@ -218,33 +218,23 @@ async function removeExternalPathIfRegistered(projectPath: string): Promise<void
 }
 
 function assertValidProjectName(name: string): string {
-  const trimmedName = name.trim();
+  const validation = validateProjectName(name);
 
-  if (!isNonEmptyString(trimmedName)) {
-    throw new ProjectStorageError('INVALID_NAME', 'Project name is required.');
+  if (!validation.ok) {
+    throw new ProjectStorageError('INVALID_NAME', validation.message);
   }
 
-  if (/[<>:"/\\|?*\u0000-\u001f]/.test(trimmedName)) {
-    throw new ProjectStorageError(
-      'INVALID_NAME',
-      'Project name contains characters that are not allowed.',
-    );
-  }
-
-  return trimmedName;
+  return validation.name;
 }
 
 async function assertUniqueProjectName(name: string, excludedProjectId?: string): Promise<void> {
   const projectPaths = await getAllProjectPaths();
   const projects = await loadProjectsFromPaths(projectPaths);
-  const normalizedName = name.trim().toLowerCase();
+  const existingNames = projects
+    .filter((project) => project.id !== excludedProjectId)
+    .map((project) => project.name);
 
-  const duplicate = projects.find(
-    (project) =>
-      project.id !== excludedProjectId && project.name.trim().toLowerCase() === normalizedName,
-  );
-
-  if (duplicate) {
+  if (isDuplicateProjectName(name, existingNames)) {
     throw new ProjectStorageError('DUPLICATE_NAME', 'A project with this name already exists.');
   }
 }

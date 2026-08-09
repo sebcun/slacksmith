@@ -5,8 +5,8 @@ export interface ModalOptions {
   content: HTMLElement | string;
   confirmLabel?: string;
   cancelLabel?: string;
-  onConfirm?: () => void;
-  onCancel?: () => void;
+  onConfirm?: () => boolean | void | Promise<boolean | void>;
+  onCancel?: () => boolean | void | Promise<boolean | void>;
   closeOnBackdrop?: boolean;
 }
 
@@ -89,8 +89,7 @@ export function createModal(options: ModalOptions): ModalHandle {
     label: confirmLabel,
     variant: 'primary',
     onClick: () => {
-      onConfirm?.();
-      close();
+      void handleConfirm();
     },
   });
 
@@ -105,8 +104,19 @@ export function createModal(options: ModalOptions): ModalHandle {
   wrapper.appendChild(modal);
 
   function handleCancel(): void {
-    onCancel?.();
-    close();
+    void (async () => {
+      const shouldClose = await onCancel?.();
+      if (shouldClose !== false) {
+        close();
+      }
+    })();
+  }
+
+  async function handleConfirm(): Promise<void> {
+    const shouldClose = await onConfirm?.();
+    if (shouldClose !== false) {
+      close();
+    }
   }
 
   function open(): void {

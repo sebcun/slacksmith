@@ -9,6 +9,7 @@ import type {
   BotProjectMetadata,
   BotRuntimeStatus,
 } from '../../shared/domain/bot-project.js';
+import { openNewBotModal } from './new-bot-modal.js';
 
 interface BotProjectListItem extends BotProjectMetadata {
   description: string;
@@ -51,8 +52,21 @@ async function loadProjects(): Promise<BotProjectListItem[]> {
   return projects.map(toBotProjectListItem);
 }
 
-function handleCreateBot(): void {
-  // New Bot modal flow is implemented in a later roadmap step.
+function handleCreateBot(
+  onProjectsChanged: (selectedProjectId?: string) => Promise<void>,
+  getExistingProjectNames: () => Promise<string[]>,
+): void {
+  void (async () => {
+    const existingProjectNames = await getExistingProjectNames();
+
+    openNewBotModal({
+      existingProjectNames,
+      onCreated: async (project) => {
+        await onProjectsChanged(project.id);
+        handleOpenBot(toBotProjectListItem(project));
+      },
+    });
+  })();
 }
 
 async function handleOpenProject(onProjectsChanged: () => Promise<void>): Promise<void> {
@@ -252,7 +266,10 @@ function createBotDetailPanel(): {
   };
 }
 
-function createSplitLayout(projects: BotProjectListItem[]): HTMLElement {
+function createSplitLayout(
+  projects: BotProjectListItem[],
+  initialSelectedProjectId?: string,
+): HTMLElement {
   const layout = document.createElement('div');
   layout.className = 'home-page__split';
 
@@ -261,12 +278,21 @@ function createSplitLayout(projects: BotProjectListItem[]): HTMLElement {
     detailPanel.showProject(project);
   });
 
+  if (initialSelectedProjectId) {
+    const selectedProject = projects.find((project) => project.id === initialSelectedProjectId);
+
+    if (selectedProject) {
+      listPanel.setSelectedId(selectedProject.id);
+      detailPanel.showProject(selectedProject);
+    }
+  }
+
   layout.appendChild(listPanel.element);
   layout.appendChild(detailPanel.element);
   return layout;
 }
 
-function createEmptyProjectsState(): HTMLElement {
+function createEmptyProjectsState(onCreateBot: () => void): HTMLElement {
   return createEmptyState({
     icon: '⚒',
     title: 'No bots yet',
@@ -274,7 +300,7 @@ function createEmptyProjectsState(): HTMLElement {
     action: {
       label: 'Create bot',
       variant: 'primary',
-      onClick: handleCreateBot,
+      onClick: onCreateBot,
     },
   });
 }
@@ -287,7 +313,12 @@ function createProjectsLoadErrorState(): HTMLElement {
   });
 }
 
-function renderHomeContent(main: HTMLElement, projects: BotProjectListItem[] | null): void {
+function renderHomeContent(
+  main: HTMLElement,
+  projects: BotProjectListItem[] | null,
+  onCreateBot: () => void,
+  selectedProjectId?: string,
+): void {
   main.replaceChildren();
 
   if (projects === null) {
@@ -296,11 +327,11 @@ function renderHomeContent(main: HTMLElement, projects: BotProjectListItem[] | n
   }
 
   if (projects.length === 0) {
-    main.appendChild(createEmptyProjectsState());
+    main.appendChild(createEmptyProjectsState(onCreateBot));
     return;
   }
 
-  main.appendChild(createSplitLayout(projects));
+  main.appendChild(createSplitLayout(projects, selectedProjectId));
 }
 
 export async function renderHomePage(container: HTMLElement): Promise<void> {
@@ -312,14 +343,26 @@ export async function renderHomePage(container: HTMLElement): Promise<void> {
   const main = document.createElement('main');
   main.className = 'home-page__main';
 
-  async function refreshProjects(): Promise<void> {
+  async function refreshProjects(selectedProjectId?: string): Promise<void> {
     try {
       const projects = await loadProjects();
-      renderHomeContent(main, projects);
+      renderHomeContent(main, projects, triggerCreateBot, selectedProjectId);
     } catch (error) {
       console.error('Failed to load projects:', error);
-      renderHomeContent(main, null);
+      renderHomeContent(main, null, triggerCreateBot);
     }
+  }
+
+  async function getExistingProjectNames(): Promise<string[]> {
+    const projects = await loadProjects();
+    return projects.map((project) => project.name);
+  }
+
+  function triggerCreateBot(): void {
+    handleCreateBot(
+      (selectedProjectId) => refreshProjects(selectedProjectId),
+      getExistingProjectNames,
+    );
   }
 
   const topbar = createTopBar({
@@ -331,14 +374,14 @@ export async function renderHomePage(container: HTMLElement): Promise<void> {
         variant: 'secondary',
         size: 'sm',
         onClick: () => {
-          void handleOpenProject(refreshProjects);
+          void handleOpenProject(() => refreshProjects());
         },
       }),
       createButton({
         label: 'New bot',
         variant: 'primary',
         size: 'sm',
-        onClick: handleCreateBot,
+        onClick: triggerCreateBot,
       }),
     ],
   });
