@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'path';
 
 import { registerIpcHandlers } from './ipc/register-handlers';
+import { registerProjectIpcHandlers } from './ipc/register-project-handlers';
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -24,6 +25,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  registerProjectIpcHandlers();
   createWindow();
 
   app.on('activate', () => {

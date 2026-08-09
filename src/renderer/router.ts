@@ -12,7 +12,7 @@ export function createRouter(root: HTMLElement): {
       return;
     }
 
-    renderHomePage(root);
+    void renderHomePage(root);
   }
 
   return { navigate };

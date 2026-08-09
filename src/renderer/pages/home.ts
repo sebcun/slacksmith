@@ -15,8 +15,6 @@ interface BotProjectListItem extends BotProjectMetadata {
   status: BotRuntimeStatus;
 }
 
-const PROJECTS: BotProjectListItem[] = [];
-
 const STATUS_BADGE: Record<
   BotRuntimeStatus,
   { label: string; variant: 'default' | 'success' | 'warning' | 'danger' }
@@ -40,13 +38,37 @@ function formatDate(isoDate: string): string {
   });
 }
 
-function handleCreateBot(): void {
+function toBotProjectListItem(project: BotProjectMetadata): BotProjectListItem {
+  return {
+    ...project,
+    description: 'Slack bot project',
+    status: 'inactive',
+  };
 }
 
-function handleOpenProject(): void {
+async function loadProjects(): Promise<BotProjectListItem[]> {
+  const projects = await window.electronAPI.listProjects();
+  return projects.map(toBotProjectListItem);
+}
+
+function handleCreateBot(): void {
+  // New Bot modal flow is implemented in a later roadmap step.
+}
+
+async function handleOpenProject(onProjectsChanged: () => Promise<void>): Promise<void> {
+  try {
+    const project = await window.electronAPI.openProject({ kind: 'dialog' });
+
+    if (project) {
+      await onProjectsChanged();
+    }
+  } catch (error) {
+    console.error('Failed to open project:', error);
+  }
 }
 
 function handleOpenBot(_project: BotProjectListItem): void {
+  // Editor entry is implemented in a later roadmap step.
 }
 
 function createDetailMetaRow(label: string, value: string): HTMLElement {
@@ -257,11 +279,48 @@ function createEmptyProjectsState(): HTMLElement {
   });
 }
 
-export function renderHomePage(container: HTMLElement): void {
+function createProjectsLoadErrorState(): HTMLElement {
+  return createEmptyState({
+    icon: '!',
+    title: 'Unable to load projects',
+    description: 'Project storage could not be read. Try restarting the app.',
+  });
+}
+
+function renderHomeContent(main: HTMLElement, projects: BotProjectListItem[] | null): void {
+  main.replaceChildren();
+
+  if (projects === null) {
+    main.appendChild(createProjectsLoadErrorState());
+    return;
+  }
+
+  if (projects.length === 0) {
+    main.appendChild(createEmptyProjectsState());
+    return;
+  }
+
+  main.appendChild(createSplitLayout(projects));
+}
+
+export async function renderHomePage(container: HTMLElement): Promise<void> {
   container.replaceChildren();
 
   const page = document.createElement('div');
   page.className = 'home-page';
+
+  const main = document.createElement('main');
+  main.className = 'home-page__main';
+
+  async function refreshProjects(): Promise<void> {
+    try {
+      const projects = await loadProjects();
+      renderHomeContent(main, projects);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+      renderHomeContent(main, null);
+    }
+  }
 
   const topbar = createTopBar({
     title: 'SlackSmith',
@@ -271,7 +330,9 @@ export function renderHomePage(container: HTMLElement): void {
         label: 'Open project',
         variant: 'secondary',
         size: 'sm',
-        onClick: handleOpenProject,
+        onClick: () => {
+          void handleOpenProject(refreshProjects);
+        },
       }),
       createButton({
         label: 'New bot',
@@ -282,16 +343,9 @@ export function renderHomePage(container: HTMLElement): void {
     ],
   });
 
-  const main = document.createElement('mcreateEmptyProjectsStateain');
-  main.className = 'home-page__main';
-
-  if (PROJECTS.length === 0) {
-    main.appendChild(createEmptyProjectsState());
-  } else {
-    main.appendChild(createSplitLayout(PROJECTS));
-  }
-
   page.appendChild(topbar);
   page.appendChild(main);
   container.appendChild(page);
+
+  await refreshProjects();
 }
