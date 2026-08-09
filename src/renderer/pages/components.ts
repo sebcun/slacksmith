@@ -164,10 +164,7 @@ function createCardsSection(): HTMLElement {
       title: 'Welcome Bot',
       description: 'Greets new members in #slacksmith.',
       content: createBadge({ label: 'Inactive', variant: 'default' }),
-      footer: [
-        createButton({ label: 'Start', variant: 'ghost', size: 'sm' }),
-        createButton({ label: 'Edit', variant: 'primary', size: 'sm' }),
-      ],
+      footer: createButton({ label: 'Open', variant: 'primary', size: 'sm' }),
     })
   );
 
@@ -176,10 +173,7 @@ function createCardsSection(): HTMLElement {
       title: 'Standup Reminder',
       description: 'Posts a daily prompt at 9:00 AM.',
       content: createBadge({ label: 'Running', variant: 'success' }),
-      footer: [
-        createButton({ label: 'Stop', variant: 'ghost', size: 'sm' }),
-        createButton({ label: 'Edit', variant: 'primary', size: 'sm' }),
-      ],
+      footer: createButton({ label: 'Open', variant: 'primary', size: 'sm' }),
     })
   );
 
@@ -295,7 +289,7 @@ function createBadgesSection(): HTMLElement {
     createCard({
       title: 'Status variants',
       content: createDemoRow([
-        createBadge({ label: 'Draft', variant: 'default' }),
+        createBadge({ label: 'Inactive', variant: 'default' }),
         createBadge({ label: 'Running', variant: 'success' }),
         createBadge({ label: 'Paused', variant: 'warning' }),
         createBadge({ label: 'Error', variant: 'danger' }),
@@ -413,7 +407,7 @@ export function renderComponentsPage(container: HTMLElement, onBack: () => void)
 
   const topbar = createTopBar({
     title: 'Components',
-    subtitle: '',
+    subtitle: 'Design system preview',
     actions: [
       createButton({
         label: 'Back',
