@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist/preload",
+    "rootDir": "src/preload",
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["src/preload/**/*.ts"]
+}
