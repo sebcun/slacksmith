@@ -22,6 +22,11 @@ export interface DeleteProjectRequest {
   id: string;
 }
 
+export interface DuplicateProjectRequest {
+  id: string;
+  name: string;
+}
+
 export type ListProjectsResponse = BotProject[];
 
 export type CreateProjectResponse = BotProject;
@@ -31,6 +36,8 @@ export type OpenProjectResponse = BotProject;
 export type RenameProjectResponse = BotProject;
 
 export type DeleteProjectResponse = void;
+
+export type DuplicateProjectResponse = BotProject;
 
 export type ProjectErrorCode =
   | 'INVALID_NAME'

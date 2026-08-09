@@ -4,13 +4,16 @@ import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import type {
   CreateProjectRequest,
   DeleteProjectRequest,
+  DuplicateProjectRequest,
   OpenProjectRequest,
   RenameProjectRequest,
 } from '../../shared/ipc/project-contracts';
 import { ProjectStorageError } from '../../shared/ipc/project-contracts';
+import { closeBot, isBotActive, syncActiveProject } from '../runtime/bot-runtime-service';
 import {
   createProject,
   deleteProject,
+  duplicateProject,
   getProjectStorageErrorMessage,
   listProjects,
   openProject,
@@ -52,7 +55,9 @@ export function registerProjectIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.PROJECTS_RENAME, async (_event, request: RenameProjectRequest) => {
     try {
-      return await renameProject(request.id, request.name);
+      const project = await renameProject(request.id, request.name);
+      syncActiveProject(project);
+      return project;
     } catch (error) {
       rethrowProjectStorageError(error);
     }
@@ -60,9 +65,24 @@ export function registerProjectIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.PROJECTS_DELETE, async (_event, request: DeleteProjectRequest) => {
     try {
+      if (isBotActive(request.id)) {
+        closeBot();
+      }
+
       await deleteProject(request.id);
     } catch (error) {
       rethrowProjectStorageError(error);
     }
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECTS_DUPLICATE,
+    async (_event, request: DuplicateProjectRequest) => {
+      try {
+        return await duplicateProject(request.id, request.name);
+      } catch (error) {
+        rethrowProjectStorageError(error);
+      }
+    },
+  );
 }

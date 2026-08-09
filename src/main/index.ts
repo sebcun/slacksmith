@@ -3,6 +3,8 @@ import path from 'path';
 
 import { registerIpcHandlers } from './ipc/register-handlers';
 import { registerProjectIpcHandlers } from './ipc/register-project-handlers';
+import { registerRuntimeIpcHandlers } from './ipc/register-runtime-handlers';
+import { closeBot } from './runtime/bot-runtime-service';
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -26,6 +28,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerIpcHandlers();
   registerProjectIpcHandlers();
+  registerRuntimeIpcHandlers();
   createWindow();
 
   app.on('activate', () => {
@@ -39,4 +42,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  closeBot();
 });

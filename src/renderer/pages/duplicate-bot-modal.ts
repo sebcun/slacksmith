@@ -1,65 +1,38 @@
 import { createInput, createModal, type ModalHandle } from '../components/index.js';
 import type { BotProject } from '../../shared/ipc/project-contracts.js';
+import {
+  getProjectActionErrorMessage,
+  getProjectNameFieldError,
+} from './project-name-validation.js';
 
-const ILLEGAL_NAME_CHARACTERS = /[<>:"/\\|?*\u0000-\u001f]/;
-
-function validateBotName(
-  name: string,
-  existingNames: readonly string[],
-): string | undefined {
-  const trimmedName = name.trim();
-
-  if (trimmedName.length === 0) {
-    return 'Project name is required.';
-  }
-
-  if (ILLEGAL_NAME_CHARACTERS.test(trimmedName)) {
-    return 'Project name contains characters that are not allowed.';
-  }
-
-  const normalizedName = trimmedName.toLowerCase();
-  const hasDuplicate = existingNames.some(
-    (existingName) => existingName.trim().toLowerCase() === normalizedName,
-  );
-
-  if (hasDuplicate) {
-    return 'A project with this name already exists.';
-  }
-
-  return undefined;
+function getDefaultDuplicateName(projectName: string): string {
+  return `Copy of ${projectName}`;
 }
 
-function getProjectCreationErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  return 'Unable to create the bot project. Please try again.';
-}
-
-export interface NewBotModalOptions {
+export interface DuplicateBotModalOptions {
+  project: BotProject;
   existingProjectNames: readonly string[];
-  onCreated: (project: BotProject) => void | Promise<void>;
+  onDuplicated: (project: BotProject) => void | Promise<void>;
 }
 
-export function createNewBotModal(options: NewBotModalOptions): ModalHandle {
-  const { existingProjectNames, onCreated } = options;
+export function createDuplicateBotModal(options: DuplicateBotModalOptions): ModalHandle {
+  const { project, existingProjectNames, onDuplicated } = options;
 
-  let nameValue = '';
+  let nameValue = getDefaultDuplicateName(project.name);
   let nameError: string | undefined;
   let isSubmitting = false;
 
   const fieldHost = document.createElement('div');
-  fieldHost.className = 'new-bot-modal__field';
+  fieldHost.className = 'project-action-modal__field';
 
   function renderNameField(): void {
     fieldHost.replaceChildren(
       createInput({
-        id: 'new-bot-name',
-        label: 'Bot name',
+        id: 'duplicate-bot-name',
+        label: 'New bot name',
         value: nameValue,
-        placeholder: 'e.g. Welcome Bot',
-        hint: nameError ? undefined : 'This name appears in your project list.',
+        placeholder: 'e.g. Welcome Bot copy',
+        hint: nameError ? undefined : 'A new project folder will be created with this name.',
         error: nameError,
         disabled: isSubmitting,
         onInput: (value) => {
@@ -84,9 +57,9 @@ export function createNewBotModal(options: NewBotModalOptions): ModalHandle {
   renderNameField();
 
   const modal = createModal({
-    title: 'New bot',
+    title: 'Duplicate bot',
     content: fieldHost,
-    confirmLabel: 'Create & open',
+    confirmLabel: 'Duplicate',
     cancelLabel: 'Cancel',
     closeOnBackdrop: !isSubmitting,
     onCancel: () => {
@@ -102,7 +75,7 @@ export function createNewBotModal(options: NewBotModalOptions): ModalHandle {
       return false;
     }
 
-    nameError = validateBotName(nameValue, existingProjectNames);
+    nameError = getProjectNameFieldError(nameValue, existingProjectNames);
     renderNameField();
 
     if (nameError) {
@@ -114,12 +87,18 @@ export function createNewBotModal(options: NewBotModalOptions): ModalHandle {
     renderNameField();
 
     try {
-      const project = await window.electronAPI.createProject({ name: nameValue.trim() });
-      await onCreated(project);
+      const duplicatedProject = await window.electronAPI.duplicateProject({
+        id: project.id,
+        name: nameValue.trim(),
+      });
+      await onDuplicated(duplicatedProject);
       return true;
     } catch (error) {
       isSubmitting = false;
-      nameError = getProjectCreationErrorMessage(error);
+      nameError = getProjectActionErrorMessage(
+        error,
+        'Unable to duplicate the bot. Please try again.',
+      );
       renderNameField();
       fieldHost.querySelector('input')?.focus();
       return false;
@@ -131,18 +110,20 @@ export function createNewBotModal(options: NewBotModalOptions): ModalHandle {
   return {
     ...modal,
     open: () => {
-      nameValue = '';
+      nameValue = getDefaultDuplicateName(project.name);
       nameError = undefined;
       isSubmitting = false;
       renderNameField();
       originalOpen();
       requestAnimationFrame(() => {
-        fieldHost.querySelector('input')?.focus();
+        const input = fieldHost.querySelector('input');
+        input?.focus();
+        input?.select();
       });
     },
   };
 }
 
-export function openNewBotModal(options: NewBotModalOptions): void {
-  createNewBotModal(options).open();
+export function openDuplicateBotModal(options: DuplicateBotModalOptions): void {
+  createDuplicateBotModal(options).open();
 }

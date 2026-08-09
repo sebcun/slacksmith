@@ -1,7 +1,8 @@
+import { renderEditorStubPage } from './pages/editor-stub.js';
 import { renderComponentsPage } from './pages/components.js';
 import { renderHomePage } from './pages/home.js';
 
-export type AppPage = 'home' | 'components';
+export type AppPage = 'home' | 'components' | 'editor';
 
 export function createRouter(root: HTMLElement): {
   navigate: (page: AppPage) => void;
@@ -12,7 +13,12 @@ export function createRouter(root: HTMLElement): {
       return;
     }
 
-    void renderHomePage(root);
+    if (page === 'editor') {
+      void renderEditorStubPage(root, () => navigate('home'));
+      return;
+    }
+
+    void renderHomePage(root, { navigate });
   }
 
   return { navigate };

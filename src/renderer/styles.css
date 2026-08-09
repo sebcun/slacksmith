@@ -107,10 +107,16 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-bg);
+  cursor: pointer;
   transition:
     border-color var(--transition-fast),
     background-color var(--transition-fast),
     box-shadow var(--transition-fast);
+}
+
+.home-page__list-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .home-page__list-item--selected {
@@ -136,6 +142,16 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
+}
+
+.home-page__detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.home-page__detail-host .card__footer {
+  justify-content: flex-start;
 }
 
 .home-page__detail {
@@ -236,6 +252,50 @@ body {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   line-height: var(--line-height-relaxed);
+}
+
+/* EDITOR STUB PAGE */
+
+.editor-stub-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.editor-stub-page__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.editor-stub-page__main > .empty-state {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 100%;
+  max-width: 28rem;
+  margin: auto;
+  padding: var(--space-8);
+}
+
+/* PROJECT ACTION MODALS */
+
+.project-action-modal__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-action-modal__delete-message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: var(--line-height-relaxed);
+}
+
+.project-action-modal__delete-error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 
 /* COMPONENTS SHOWCASE PAGE */

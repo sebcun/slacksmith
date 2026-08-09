@@ -6,14 +6,22 @@ import {
   createTopBar,
 } from '../components/index.js';
 import type {
-  BotProjectMetadata,
   BotRuntimeStatus,
 } from '../../shared/domain/bot-project.js';
+import type { BotProject } from '../../shared/ipc/project-contracts.js';
+import { openDeleteBotModal } from './delete-bot-modal.js';
+import { openDuplicateBotModal } from './duplicate-bot-modal.js';
 import { openNewBotModal } from './new-bot-modal.js';
+import { openRenameBotModal } from './rename-bot-modal.js';
+import type { AppPage } from '../router.js';
 
-interface BotProjectListItem extends BotProjectMetadata {
+interface BotProjectListItem extends BotProject {
   description: string;
   status: BotRuntimeStatus;
+}
+
+interface HomePageOptions {
+  navigate: (page: AppPage) => void;
 }
 
 const STATUS_BADGE: Record<
@@ -39,22 +47,36 @@ function formatDate(isoDate: string): string {
   });
 }
 
-function toBotProjectListItem(project: BotProjectMetadata): BotProjectListItem {
-  return {
+async function loadProjects(): Promise<BotProjectListItem[]> {
+  const [projects, runtimeState] = await Promise.all([
+    window.electronAPI.listProjects(),
+    window.electronAPI.getRuntimeState(),
+  ]);
+
+  return projects.map((project) => ({
     ...project,
     description: 'Slack bot project',
-    status: 'inactive',
-  };
+    status:
+      runtimeState.activeProject?.id === project.id ? runtimeState.status : 'inactive',
+  }));
 }
 
-async function loadProjects(): Promise<BotProjectListItem[]> {
-  const projects = await window.electronAPI.listProjects();
-  return projects.map(toBotProjectListItem);
+async function openBotInApp(
+  projectId: string,
+  navigate: (page: AppPage) => void,
+): Promise<void> {
+  try {
+    await window.electronAPI.openBot({ id: projectId });
+    navigate('editor');
+  } catch (error) {
+    console.error('Failed to open bot:', error);
+  }
 }
 
 function handleCreateBot(
   onProjectsChanged: (selectedProjectId?: string) => Promise<void>,
   getExistingProjectNames: () => Promise<string[]>,
+  navigate: (page: AppPage) => void,
 ): void {
   void (async () => {
     const existingProjectNames = await getExistingProjectNames();
@@ -63,26 +85,26 @@ function handleCreateBot(
       existingProjectNames,
       onCreated: async (project) => {
         await onProjectsChanged(project.id);
-        handleOpenBot(toBotProjectListItem(project));
+        await openBotInApp(project.id, navigate);
       },
     });
   })();
 }
 
-async function handleOpenProject(onProjectsChanged: () => Promise<void>): Promise<void> {
+async function handleOpenProject(
+  onProjectsChanged: () => Promise<void>,
+  navigate: (page: AppPage) => void,
+): Promise<void> {
   try {
     const project = await window.electronAPI.openProject({ kind: 'dialog' });
 
     if (project) {
       await onProjectsChanged();
+      await openBotInApp(project.id, navigate);
     }
   } catch (error) {
     console.error('Failed to open project:', error);
   }
-}
-
-function handleOpenBot(_project: BotProjectListItem): void {
-  // Editor entry is implemented in a later roadmap step.
 }
 
 function createDetailMetaRow(label: string, value: string): HTMLElement {
@@ -141,15 +163,19 @@ function createDetailPlaceholder(): HTMLElement {
   const description = document.createElement('p');
   description.className = 'home-page__detail-placeholder-description';
   description.textContent =
-    'Choose a bot from the list and click View to see its details here.';
+    'Select a bot from the list to view its details and manage it here.';
   placeholder.appendChild(description);
 
   return placeholder;
 }
 
+interface BotListPanelCallbacks {
+  onSelect: (project: BotProjectListItem) => void;
+}
+
 function createBotListPanel(
   projects: BotProjectListItem[],
-  onView: (project: BotProjectListItem) => void,
+  callbacks: BotListPanelCallbacks,
 ): {
   element: HTMLElement;
   setSelectedId: (projectId: string | null) => void;
@@ -199,17 +225,21 @@ function createBotListPanel(
     info.appendChild(createBadge({ label: badge.label, variant: badge.variant }));
     item.appendChild(info);
 
-    item.appendChild(
-      createButton({
-        label: 'View',
-        variant: 'secondary',
-        size: 'sm',
-        onClick: () => {
-          setSelectedId(project.id);
-          onView(project);
-        },
-      }),
-    );
+    item.tabIndex = 0;
+    item.setAttribute('aria-label', `View ${project.name}`);
+
+    item.addEventListener('click', () => {
+      setSelectedId(project.id);
+      callbacks.onSelect(project);
+    });
+
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setSelectedId(project.id);
+        callbacks.onSelect(project);
+      }
+    });
 
     list.appendChild(item);
   }
@@ -225,7 +255,14 @@ function createBotListPanel(
   return { element: panel, setSelectedId };
 }
 
-function createBotDetailPanel(): {
+interface BotDetailPanelCallbacks {
+  onOpen: (project: BotProjectListItem) => void;
+  onRename: (project: BotProjectListItem) => void;
+  onDuplicate: (project: BotProjectListItem) => void;
+  onDelete: (project: BotProjectListItem) => void;
+}
+
+function createBotDetailPanel(callbacks: BotDetailPanelCallbacks): {
   element: HTMLElement;
   showProject: (project: BotProjectListItem) => void;
   showPlaceholder: () => void;
@@ -242,17 +279,52 @@ function createBotDetailPanel(): {
     contentHost.replaceChildren(createDetailPlaceholder());
   }
 
+  function createDetailActions(project: BotProjectListItem): HTMLElement {
+    const actions = document.createElement('div');
+    actions.className = 'home-page__detail-actions';
+
+    actions.appendChild(
+      createButton({
+        label: 'Open',
+        variant: 'primary',
+        onClick: () => callbacks.onOpen(project),
+      }),
+    );
+
+    actions.appendChild(
+      createButton({
+        label: 'Rename',
+        variant: 'secondary',
+        onClick: () => callbacks.onRename(project),
+      }),
+    );
+
+    actions.appendChild(
+      createButton({
+        label: 'Duplicate',
+        variant: 'secondary',
+        onClick: () => callbacks.onDuplicate(project),
+      }),
+    );
+
+    actions.appendChild(
+      createButton({
+        label: 'Delete',
+        variant: 'danger',
+        onClick: () => callbacks.onDelete(project),
+      }),
+    );
+
+    return actions;
+  }
+
   function showProject(project: BotProjectListItem): void {
     contentHost.replaceChildren(
       createCard({
         title: project.name,
         description: project.description,
         content: createBotDetailContent(project),
-        footer: createButton({
-          label: 'Open',
-          variant: 'primary',
-          onClick: () => handleOpenBot(project),
-        }),
+        footer: createDetailActions(project),
       }),
     );
   }
@@ -268,14 +340,17 @@ function createBotDetailPanel(): {
 
 function createSplitLayout(
   projects: BotProjectListItem[],
+  callbacks: BotDetailPanelCallbacks,
   initialSelectedProjectId?: string,
 ): HTMLElement {
   const layout = document.createElement('div');
   layout.className = 'home-page__split';
 
-  const detailPanel = createBotDetailPanel();
-  const listPanel = createBotListPanel(projects, (project) => {
-    detailPanel.showProject(project);
+  const detailPanel = createBotDetailPanel(callbacks);
+  const listPanel = createBotListPanel(projects, {
+    onSelect: (project) => {
+      detailPanel.showProject(project);
+    },
   });
 
   if (initialSelectedProjectId) {
@@ -317,6 +392,7 @@ function renderHomeContent(
   main: HTMLElement,
   projects: BotProjectListItem[] | null,
   onCreateBot: () => void,
+  callbacks: BotDetailPanelCallbacks,
   selectedProjectId?: string,
 ): void {
   main.replaceChildren();
@@ -331,10 +407,15 @@ function renderHomeContent(
     return;
   }
 
-  main.appendChild(createSplitLayout(projects, selectedProjectId));
+  main.appendChild(createSplitLayout(projects, callbacks, selectedProjectId));
 }
 
-export async function renderHomePage(container: HTMLElement): Promise<void> {
+export async function renderHomePage(
+  container: HTMLElement,
+  options: HomePageOptions,
+): Promise<void> {
+  const { navigate } = options;
+
   container.replaceChildren();
 
   const page = document.createElement('div');
@@ -343,25 +424,66 @@ export async function renderHomePage(container: HTMLElement): Promise<void> {
   const main = document.createElement('main');
   main.className = 'home-page__main';
 
-  async function refreshProjects(selectedProjectId?: string): Promise<void> {
-    try {
-      const projects = await loadProjects();
-      renderHomeContent(main, projects, triggerCreateBot, selectedProjectId);
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-      renderHomeContent(main, null, triggerCreateBot);
-    }
-  }
-
   async function getExistingProjectNames(): Promise<string[]> {
     const projects = await loadProjects();
     return projects.map((project) => project.name);
+  }
+
+  async function refreshProjects(selectedProjectId?: string): Promise<void> {
+    try {
+      const projects = await loadProjects();
+      renderHomeContent(main, projects, triggerCreateBot, createProjectCallbacks(), selectedProjectId);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+      renderHomeContent(main, null, triggerCreateBot, createProjectCallbacks());
+    }
+  }
+
+  function createProjectCallbacks(): BotDetailPanelCallbacks {
+    return {
+      onOpen: (project) => {
+        void openBotInApp(project.id, navigate);
+      },
+      onRename: (project) => {
+        void (async () => {
+          const existingProjectNames = await getExistingProjectNames();
+          openRenameBotModal({
+            project,
+            existingProjectNames,
+            onRenamed: async () => {
+              await refreshProjects(project.id);
+            },
+          });
+        })();
+      },
+      onDuplicate: (project) => {
+        void (async () => {
+          const existingProjectNames = await getExistingProjectNames();
+          openDuplicateBotModal({
+            project,
+            existingProjectNames,
+            onDuplicated: async (duplicatedProject) => {
+              await refreshProjects(duplicatedProject.id);
+            },
+          });
+        })();
+      },
+      onDelete: (project) => {
+        openDeleteBotModal({
+          project,
+          onDeleted: async () => {
+            await refreshProjects();
+          },
+        });
+      },
+    };
   }
 
   function triggerCreateBot(): void {
     handleCreateBot(
       (selectedProjectId) => refreshProjects(selectedProjectId),
       getExistingProjectNames,
+      navigate,
     );
   }
 
@@ -374,7 +496,7 @@ export async function renderHomePage(container: HTMLElement): Promise<void> {
         variant: 'secondary',
         size: 'sm',
         onClick: () => {
-          void handleOpenProject(() => refreshProjects());
+          void handleOpenProject(() => refreshProjects(), navigate);
         },
       }),
       createButton({

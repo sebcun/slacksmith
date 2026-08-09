@@ -182,7 +182,7 @@ async function getAllProjectPaths(): Promise<string[]> {
   return [...uniquePaths];
 }
 
-async function findProjectById(projectId: string): Promise<BotProject | null> {
+export async function findProjectById(projectId: string): Promise<BotProject | null> {
   const projectPaths = await getAllProjectPaths();
   const projects = await loadProjectsFromPaths(projectPaths);
   return projects.find((project) => project.id === projectId) ?? null;
@@ -380,6 +380,47 @@ export async function deleteProject(projectId: string): Promise<void> {
   } catch {
     throw new ProjectStorageError('IO_ERROR', 'Unable to delete the project.');
   }
+}
+
+export async function duplicateProject(projectId: string, name: string): Promise<BotProject> {
+  const validName = assertValidProjectName(name);
+  await assertUniqueProjectName(validName);
+
+  const sourceProject = await findProjectById(projectId);
+
+  if (!sourceProject) {
+    throw new ProjectStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
+  }
+
+  const now = new Date().toISOString();
+  const id = randomUUID();
+  const projectPath = await createUniqueManagedProjectPath(validName, id);
+
+  try {
+    await fs.cp(sourceProject.path, projectPath, { recursive: true });
+
+    const duplicatedProjectFile: ProjectFile = {
+      id,
+      name: validName,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await writeProjectFile(projectPath, duplicatedProjectFile);
+  } catch {
+    await fs.rm(projectPath, { recursive: true, force: true }).catch(() => undefined);
+    throw new ProjectStorageError('IO_ERROR', 'Unable to duplicate the project.');
+  }
+
+  return toBotProject(
+    {
+      id,
+      name: validName,
+      createdAt: now,
+      updatedAt: now,
+    },
+    projectPath,
+  );
 }
 
 export function getProjectStorageErrorMessage(error: unknown): string {
