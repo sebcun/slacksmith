@@ -30,6 +30,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/shared/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['eslint.config.mjs'],
     languageOptions: {
       globals: globals.node,

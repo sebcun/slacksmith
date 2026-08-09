@@ -1,5 +1,7 @@
-const appRoot = document.getElementById("app")
+import { renderHomePage } from './pages/home.js';
+
+const appRoot = document.getElementById('app');
 
 if (appRoot) {
-    appRoot.setAttribute('aria-label', "SlackSmith")
+  void renderHomePage(appRoot);
 }

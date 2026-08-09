@@ -1,3 +1,7 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from 'electron';
 
-contextBridge.exposeInMainWorld('electronAPI', {})
+const GET_APP_INFO_CHANNEL = 'app:get-info';
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getAppInfo: () => ipcRenderer.invoke(GET_APP_INFO_CHANNEL),
+});

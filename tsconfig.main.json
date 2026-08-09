@@ -4,9 +4,9 @@
     "target": "es2024",
     "module": "commonjs",
     "moduleResolution": "node",
-    "outDir": "dist/main",
-    "rootDir": "src/main",
+    "outDir": "dist",
+    "rootDir": "src",
     "lib": ["ES2024"]
   },
-  "include": ["src/main/**/*.ts"]
+  "include": ["src/main/**/*.ts", "src/shared/**/*.ts"]
 }

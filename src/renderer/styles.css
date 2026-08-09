@@ -19,3 +19,26 @@ body {
 #app {
     min-height: 100%;
 }
+
+.home-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 2rem;
+    text-align: center;
+}
+
+.home-page h1 {
+    margin: 0 0 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.app-info {
+    margin: 0;
+    color: #555;
+    font-size: 0.95rem;
+}
