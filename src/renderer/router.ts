@@ -1,4 +1,4 @@
-import { renderEditorStubPage } from './pages/editor-stub.js';
+import { renderEditorPage } from './pages/editor.js';
 import { renderComponentsPage } from './pages/components.js';
 import { renderHomePage } from './pages/home.js';
 
@@ -14,7 +14,7 @@ export function createRouter(root: HTMLElement): {
     }
 
     if (page === 'editor') {
-      void renderEditorStubPage(root, () => navigate('home'));
+      void renderEditorPage(root, () => navigate('home'));
       return;
     }
 

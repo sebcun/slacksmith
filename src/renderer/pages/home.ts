@@ -489,7 +489,7 @@ export async function renderHomePage(
 
   const topbar = createTopBar({
     title: 'SlackSmith',
-    subtitle: 'Build Slack bots visually',
+    subtitle: '',
     actions: [
       createButton({
         label: 'Open project',
