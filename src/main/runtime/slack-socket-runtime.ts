@@ -88,6 +88,9 @@ export class SlackSocketRuntime {
 
     const messageTriggers = triggerNodes.filter((node) => node.typeId === 'message-received');
     const slashTriggers = triggerNodes.filter((node) => node.typeId === 'slash-command');
+    const joinedTriggers = triggerNodes.filter((node) => node.typeId === 'user-joined-channel');
+    const leftTriggers = triggerNodes.filter((node) => node.typeId === 'user-left-channel');
+    const mentionTriggers = triggerNodes.filter((node) => node.typeId === 'app-mention');
 
     if (messageTriggers.length > 0) {
       this.app.message(async ({ message, client }) => {
@@ -153,6 +156,94 @@ export class SlackSocketRuntime {
           },
           client,
         );
+      });
+    }
+
+    if (joinedTriggers.length > 0) {
+      this.app.event('member_joined_channel', async ({ event, client }) => {
+        const channelId = event.channel ?? '';
+        const userId = event.user ?? '';
+
+        if (!channelId || !userId) {
+          return;
+        }
+
+        this.logger.info('slack', `User joined channel ${channelId}`, {
+          details: { userId },
+        });
+
+        for (const triggerNode of joinedTriggers) {
+          await this.runFlow(
+            {
+              triggerNodeId: triggerNode.id,
+              type: 'user-joined-channel',
+              channelId,
+              userId,
+              text: '',
+            },
+            client,
+          );
+        }
+      });
+    }
+
+    if (leftTriggers.length > 0) {
+      this.app.event('member_left_channel', async ({ event, client }) => {
+        const channelId = event.channel ?? '';
+        const userId = event.user ?? '';
+
+        if (!channelId || !userId) {
+          return;
+        }
+
+        this.logger.info('slack', `User left channel ${channelId}`, {
+          details: { userId },
+        });
+
+        for (const triggerNode of leftTriggers) {
+          await this.runFlow(
+            {
+              triggerNodeId: triggerNode.id,
+              type: 'user-left-channel',
+              channelId,
+              userId,
+              text: '',
+            },
+            client,
+          );
+        }
+      });
+    }
+
+    if (mentionTriggers.length > 0) {
+      this.app.event('app_mention', async ({ event, client }) => {
+        if (event.bot_id || !event.user || event.user === this.slackConfig.botUserId) {
+          return;
+        }
+
+        const channelId = event.channel ?? '';
+        const text = event.text ?? '';
+
+        this.logger.info('slack', `App mentioned in ${channelId}`, {
+          details: {
+            userId: event.user,
+            textPreview: text.length > 80 ? `${text.slice(0, 79)}…` : text,
+          },
+        });
+
+        for (const triggerNode of mentionTriggers) {
+          await this.runFlow(
+            {
+              triggerNodeId: triggerNode.id,
+              type: 'app-mention',
+              channelId,
+              userId: event.user,
+              text,
+              messageTs: event.ts,
+            },
+            client,
+          );
+        }
       });
     }
   }

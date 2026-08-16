@@ -77,11 +77,6 @@ const BRANCH_OUTPUTS: ComponentPortDefinition[] = [
   { id: 'false', label: 'False', direction: 'output' },
 ];
 
-const MATCH_OUTPUTS: ComponentPortDefinition[] = [
-  { id: 'match', label: 'Match', direction: 'output' },
-  { id: 'no-match', label: 'No match', direction: 'output' },
-];
-
 export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     id: 'message-received',
@@ -149,6 +144,98 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
+    id: 'user-joined-channel',
+    categoryId: 'triggers',
+    name: 'User joined channel',
+    description: 'When someone joins a channel',
+    inputs: [],
+    outputs: [TRIGGER_OUTPUT],
+    fields: [
+      {
+        id: 'storeUser',
+        label: 'Store user',
+        type: 'boolean',
+        description: 'Save the user who joined as ${user.id} and ${user.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeChannel',
+        label: 'Store channel',
+        type: 'boolean',
+        description: 'Save the channel as ${channel.id} and ${channel.name}.',
+        defaultValue: true,
+      },
+    ],
+    execution: {
+      handlerId: 'trigger.user-joined-channel',
+      isTrigger: true,
+    },
+  },
+  {
+    id: 'user-left-channel',
+    categoryId: 'triggers',
+    name: 'User left channel',
+    description: 'When someone leaves a channel',
+    inputs: [],
+    outputs: [TRIGGER_OUTPUT],
+    fields: [
+      {
+        id: 'storeUser',
+        label: 'Store user',
+        type: 'boolean',
+        description: 'Save the user who left as ${user.id} and ${user.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeChannel',
+        label: 'Store channel',
+        type: 'boolean',
+        description: 'Save the channel as ${channel.id} and ${channel.name}.',
+        defaultValue: true,
+      },
+    ],
+    execution: {
+      handlerId: 'trigger.user-left-channel',
+      isTrigger: true,
+    },
+  },
+  {
+    id: 'app-mention',
+    categoryId: 'triggers',
+    name: 'App mention',
+    description: 'When someone @mentions the bot',
+    inputs: [],
+    outputs: [TRIGGER_OUTPUT],
+    fields: [
+      {
+        id: 'storeUser',
+        label: 'Store user',
+        type: 'boolean',
+        description: 'Save the user who mentioned the bot as ${user.id} and ${user.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeChannel',
+        label: 'Store channel',
+        type: 'boolean',
+        description: 'Save the channel as ${channel.id} and ${channel.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeMessage',
+        label: 'Store message',
+        type: 'boolean',
+        description:
+          'Save the mention text as ${message.content} and ${message.ts} for reply and reaction steps.',
+        defaultValue: true,
+      },
+    ],
+    execution: {
+      handlerId: 'trigger.app-mention',
+      isTrigger: true,
+    },
+  },
+  {
     id: 'if-else',
     categoryId: 'conditions',
     name: 'If / else',
@@ -196,27 +283,6 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     execution: {
       handlerId: 'condition.if-else',
-    },
-  },
-  {
-    id: 'channel-match',
-    categoryId: 'conditions',
-    name: 'Channel match',
-    description: 'Match a specific channel',
-    inputs: [FLOW_INPUT],
-    outputs: MATCH_OUTPUTS,
-    fields: [
-      {
-        id: 'channel',
-        label: 'Channel',
-        type: 'channel',
-        description: appendVariableHint('Channel name, ID, or variable such as ${message.channel.id}.'),
-        required: true,
-        supportsVariables: true,
-      },
-    ],
-    execution: {
-      handlerId: 'condition.channel-match',
     },
   },
   {
@@ -546,11 +612,6 @@ export function getNodeCanvasSubtitle(
         : 'Equals';
       const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
       return rightValue.length > 0 ? `${operatorLabel} "${rightValue}"` : operatorLabel;
-    }
-
-    case 'channel-match': {
-      const channel = truncateDisplayValue(String(config.channel ?? ''));
-      return channel.length > 0 ? channel : null;
     }
 
     default:

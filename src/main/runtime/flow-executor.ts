@@ -96,34 +96,6 @@ async function resolveDefaultSlackChannel(slackClient: WebClient): Promise<strin
   throw new Error('Could not find a default channel to send the message.');
 }
 
-async function resolveConfiguredChannelId(
-  configuredChannel: string,
-  slackClient: WebClient,
-): Promise<string> {
-  const trimmed = configuredChannel.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
-
-  if (/^[CGD][A-Z0-9]+$/i.test(trimmed)) {
-    return trimmed;
-  }
-
-  const channelName = trimmed.replace(/^#/, '').toLowerCase();
-  const result = await slackClient.conversations.list({
-    types: 'public_channel,private_channel',
-    exclude_archived: true,
-    limit: 200,
-  });
-
-  const matchedChannel = result.channels?.find(
-    (channel: { id?: string; name?: string }) =>
-      channel.name?.toLowerCase() === channelName,
-  );
-
-  return matchedChannel?.id ?? trimmed;
-}
-
 async function resolveSendMessageChannel(
   configuredChannel: string,
   context: FlowExecutionContext,
@@ -355,28 +327,6 @@ async function executeNode(
         });
 
         return { outputPortId: isTrue ? 'true' : 'false', terminate: false };
-      }
-
-      case 'condition.channel-match': {
-        const configuredChannel = fieldValue('channel');
-        const expectedChannelId = await resolveConfiguredChannelId(
-          configuredChannel,
-          context.slackClient,
-        );
-        const matches =
-          expectedChannelId.length > 0 && expectedChannelId === context.trigger.channelId;
-
-        context.logger.info('execution', `Channel match ${matches ? 'matched' : 'did not match'}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-          details: {
-            configuredChannel,
-            expectedChannelId,
-            triggerChannelId: context.trigger.channelId,
-          },
-        });
-
-        return { outputPortId: matches ? 'match' : 'no-match', terminate: false };
       }
 
       case 'utility.delay': {

@@ -37,12 +37,6 @@ function createInstructions(): HTMLElement {
 
   const stepItems = [
     'Create or open a Slack app at api.slack.com/apps.',
-    'Enable Socket Mode and create an app-level token with the connections:write scope.',
-    'Under Event Subscriptions, enable events and subscribe to message.channels (and message.groups / message.im if needed).',
-    'Under OAuth & Permissions, add bot scopes: channels:history, chat:write, and reactions:write (reinstall the app after changing scopes).',
-    'Install the app to your workspace, invite the bot to your channel (/invite @YourBot), and copy the Bot User OAuth Token.',
-    'Copy the Signing Secret from Basic Information.',
-    'Paste all three values below and click Test & save.',
   ];
 
   for (const step of stepItems) {

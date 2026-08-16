@@ -296,6 +296,7 @@ function createCanvasNavigationControls(canvas: FlowCanvasEngine): HTMLElement {
   return toolbar;
 }
 
+
 function renderSelectedNodeProperties(
   body: HTMLElement,
   node: FlowNode,
@@ -330,6 +331,7 @@ function renderSelectedNodeProperties(
   description.textContent = definition.description;
 
   summary.append(nameRow, categoryRow, description);
+
 
   const fieldsSection = document.createElement('div');
   fieldsSection.className = 'editor-page__properties-section';
@@ -797,7 +799,7 @@ export async function renderEditorPage(
 
   const topbar = createTopBar({
     title: projectName,
-    subtitle: 'Flow editor',
+    subtitle: 'Bot editor',
     actions: [
       saveBadgeHost,
       slackBadgeHost,

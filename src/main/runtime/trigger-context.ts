@@ -2,7 +2,12 @@ import type { WebClient } from '@slack/web-api';
 
 import type { FlowNode } from '../../shared/domain/flow-graph';
 
-export type SlackTriggerType = 'message-received' | 'slash-command';
+export type SlackTriggerType =
+  | 'message-received'
+  | 'slash-command'
+  | 'user-joined-channel'
+  | 'user-left-channel'
+  | 'app-mention';
 
 export interface SlackTriggerPayload {
   triggerNodeId: string;
@@ -16,6 +21,11 @@ export interface SlackTriggerPayload {
 }
 
 export interface TriggerAuthorVariable {
+  id: string;
+  name: string;
+}
+
+export interface TriggerUserVariable {
   id: string;
   name: string;
 }
@@ -47,10 +57,10 @@ function resolveConfigBoolean(value: unknown, defaultValue: boolean): boolean {
   return Boolean(value);
 }
 
-async function fetchAuthor(
+async function fetchUser(
   userId: string,
   slackClient: WebClient,
-): Promise<TriggerAuthorVariable> {
+): Promise<TriggerUserVariable> {
   try {
     const result = await slackClient.users.info({ user: userId });
     const user = result.user;
@@ -108,11 +118,47 @@ export async function createTriggerVariables(
     const storeChannel = resolveConfigBoolean(config.storeChannel, true);
 
     if (storeAuthor) {
-      variables.author = await fetchAuthor(payload.userId, slackClient);
+      variables.author = await fetchUser(payload.userId, slackClient);
     }
 
     if (storeChannel) {
       variables.channel = await fetchChannel(payload.channelId, slackClient);
+    }
+  }
+
+  if (
+    payload.type === 'user-joined-channel' ||
+    payload.type === 'user-left-channel' ||
+    payload.type === 'app-mention'
+  ) {
+    const storeUser = resolveConfigBoolean(config.storeUser, true);
+    const storeChannel = resolveConfigBoolean(config.storeChannel, true);
+
+    if (storeUser) {
+      variables.user = await fetchUser(payload.userId, slackClient);
+    }
+
+    if (storeChannel) {
+      variables.channel = await fetchChannel(payload.channelId, slackClient);
+    }
+  }
+
+  if (payload.type === 'app-mention') {
+    const storeMessage = resolveConfigBoolean(config.storeMessage, true);
+
+    if (storeMessage) {
+      const message: TriggerMessageVariable = {
+        content: payload.text,
+        channel:
+          (variables.channel as TriggerChannelVariable | undefined) ??
+          (await fetchChannel(payload.channelId, slackClient)),
+      };
+
+      if (payload.messageTs) {
+        message.ts = payload.messageTs;
+      }
+
+      variables.message = message;
     }
   }
 
@@ -121,7 +167,7 @@ export async function createTriggerVariables(
     const storeMessage = resolveConfigBoolean(config.storeMessage, true);
 
     if (storeAuthor) {
-      variables.author = await fetchAuthor(payload.userId, slackClient);
+      variables.author = await fetchUser(payload.userId, slackClient);
     }
 
     if (storeMessage) {
