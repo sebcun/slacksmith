@@ -17,6 +17,10 @@ function createRuntimeState(): BotRuntimeState {
   };
 }
 
+function stopExecution(): void {
+  status = 'inactive';
+}
+
 export function getRuntimeState(): BotRuntimeState {
   return createRuntimeState();
 }
@@ -41,14 +45,61 @@ export async function openBot(projectId: string): Promise<BotRuntimeState> {
   }
 
   activeProject = project;
+  status = 'inactive';
+
+  return createRuntimeState();
+}
+
+export function startBot(): BotRuntimeState {
+  if (!activeProject) {
+    throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
+  }
+
+  if (status === 'running') {
+    throw new BotRuntimeError('ALREADY_RUNNING', 'Bot is already running.');
+  }
+
+  status = 'running';
+
+  return createRuntimeState();
+}
+
+export function stopBot(): BotRuntimeState {
+  if (!activeProject) {
+    throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
+  }
+
+  if (status !== 'running' && status !== 'paused' && status !== 'error') {
+    throw new BotRuntimeError('NOT_RUNNING', 'Bot is not running.');
+  }
+
+  stopExecution();
+
+  return createRuntimeState();
+}
+
+export function restartBot(): BotRuntimeState {
+  if (!activeProject) {
+    throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
+  }
+
+  if (status === 'running' || status === 'paused' || status === 'error') {
+    stopExecution();
+  }
+
   status = 'running';
 
   return createRuntimeState();
 }
 
 export function closeBot(): BotRuntimeState {
+  if (status === 'running' || status === 'paused' || status === 'error') {
+    stopExecution();
+  }
+
   activeProject = null;
   status = 'inactive';
+
   return createRuntimeState();
 }
 

@@ -1,3 +1,5 @@
+import { appendVariableHint, createStoreAsField } from './variables.js';
+
 export const COMPONENT_CATEGORIES = [
   { id: 'triggers', label: 'Triggers' },
   { id: 'conditions', label: 'Conditions' },
@@ -31,6 +33,8 @@ export interface ConfigFieldDefinition {
   required?: boolean;
   defaultValue?: string | number | boolean;
   options?: ConfigFieldOption[];
+  /** When true, field values may include ${variableName} references. */
+  supportsVariables?: boolean;
 }
 
 export interface ExecutionMetadata {
@@ -153,9 +157,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'expression',
         label: 'Condition',
         type: 'text',
-        description: 'Expression to evaluate. True routes to the True output.',
+        description: appendVariableHint('Expression to evaluate. True routes to the True output.'),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -174,8 +179,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'leftValue',
         label: 'Value',
         type: 'text',
+        description: appendVariableHint(),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
       {
         id: 'operator',
@@ -195,8 +202,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'rightValue',
         label: 'Compare to',
         type: 'text',
+        description: appendVariableHint(),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -234,14 +243,18 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'channel',
         label: 'Channel',
         type: 'channel',
+        description: appendVariableHint(),
         required: true,
+        supportsVariables: true,
       },
       {
         id: 'message',
         label: 'Message',
         type: 'text',
+        description: appendVariableHint(),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -260,9 +273,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'emoji',
         label: 'Emoji',
         type: 'text',
-        description: 'Emoji name without colons, for example thumbsup.',
+        description: appendVariableHint('Emoji name without colons, for example thumbsup.'),
         required: true,
         defaultValue: 'thumbsup',
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -281,8 +295,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'channelName',
         label: 'Channel name',
         type: 'text',
+        description: appendVariableHint(),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
       {
         id: 'isPrivate',
@@ -299,7 +315,7 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: 'get-user',
     categoryId: 'data',
     name: 'Get user',
-    description: 'Look up a Slack user',
+    description: 'Look up a Slack user and store the result in a variable',
     inputs: [FLOW_INPUT],
     outputs: [FLOW_OUTPUT],
     fields: [
@@ -307,10 +323,12 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'userId',
         label: 'User ID',
         type: 'text',
-        description: 'Slack user ID to look up.',
+        description: appendVariableHint('Slack user ID to look up.'),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
+      createStoreAsField(),
     ],
     execution: {
       handlerId: 'data.get-user',
@@ -320,7 +338,7 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: 'store-variable',
     categoryId: 'data',
     name: 'Store variable',
-    description: 'Save a value for later',
+    description: 'Save a value under a name for use in later steps',
     inputs: [FLOW_INPUT],
     outputs: [FLOW_OUTPUT],
     fields: [
@@ -335,32 +353,14 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'value',
         label: 'Value',
         type: 'text',
+        description: appendVariableHint('Value to save under the variable name.'),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
     ],
     execution: {
       handlerId: 'data.store-variable',
-    },
-  },
-  {
-    id: 'read-variable',
-    categoryId: 'data',
-    name: 'Read variable',
-    description: 'Load a saved value',
-    inputs: [FLOW_INPUT],
-    outputs: [FLOW_OUTPUT],
-    fields: [
-      {
-        id: 'variableName',
-        label: 'Variable name',
-        type: 'text',
-        required: true,
-        defaultValue: '',
-      },
-    ],
-    execution: {
-      handlerId: 'data.read-variable',
     },
   },
   {
@@ -374,9 +374,11 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       {
         id: 'seconds',
         label: 'Seconds',
-        type: 'number',
+        type: 'text',
+        description: appendVariableHint('Number of seconds to wait, or a variable reference.'),
         required: true,
-        defaultValue: 1,
+        defaultValue: '1',
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -395,8 +397,10 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'message',
         label: 'Message',
         type: 'text',
+        description: appendVariableHint(),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
       {
         id: 'level',

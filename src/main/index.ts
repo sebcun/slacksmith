@@ -1,9 +1,11 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 
+import { registerFlowIpcHandlers } from './ipc/register-flow-handlers';
 import { registerIpcHandlers } from './ipc/register-handlers';
 import { registerProjectIpcHandlers } from './ipc/register-project-handlers';
 import { registerRuntimeIpcHandlers } from './ipc/register-runtime-handlers';
+import { registerSlackIpcHandlers } from './ipc/register-slack-handlers';
 import { closeBot } from './runtime/bot-runtime-service';
 
 function createWindow(): void {
@@ -29,6 +31,8 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   registerProjectIpcHandlers();
   registerRuntimeIpcHandlers();
+  registerSlackIpcHandlers();
+  registerFlowIpcHandlers();
   createWindow();
 
   app.on('activate', () => {

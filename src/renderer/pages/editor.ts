@@ -8,7 +8,9 @@ import {
   serializeComponentTemplate,
 } from '../editor/flow-canvas-engine.js';
 import { createNodeConfigForm } from '../editor/node-config-form.js';
+import { openSlackConnectionModal } from './slack-connection-modal.js';
 import type { BotRuntimeStatus } from '../../shared/domain/bot-project.js';
+import type { SlackConnectionSummary } from '../../shared/domain/slack-config.js';
 import {
   COMPONENT_CATEGORIES,
   getCategoryLabel,
@@ -16,7 +18,7 @@ import {
   getComponentDefinitionsByCategory,
   type ComponentDefinition,
 } from '../../shared/domain/component-registry.js';
-import type { FlowNode } from '../../shared/domain/flow-graph.js';
+import type { FlowGraph, FlowNode } from '../../shared/domain/flow-graph.js';
 
 const STATUS_BADGE: Record<
   BotRuntimeStatus,
@@ -464,7 +466,15 @@ function createPropertiesPanel(): {
   return { panel, body };
 }
 
-function createEditorWorkspace(): HTMLElement {
+interface EditorWorkspaceOptions {
+  initialGraph: FlowGraph;
+  onGraphChange: (graph: FlowGraph) => void;
+}
+
+function createEditorWorkspace(options: EditorWorkspaceOptions): {
+  element: HTMLElement;
+  getGraph: () => FlowGraph;
+} {
   const workspace = document.createElement('div');
   workspace.className = 'editor-page__workspace';
 
@@ -485,7 +495,10 @@ function createEditorWorkspace(): HTMLElement {
       });
       setPropertiesPanelVisible(propertiesPanel, true);
     },
+    onGraphChange: options.onGraphChange,
   });
+
+  canvasEngine.loadGraph(options.initialGraph);
 
   const library = createComponentLibraryPanel((definition) => {
     canvasEngine.addNode({ typeId: definition.id });
@@ -509,7 +522,25 @@ function createEditorWorkspace(): HTMLElement {
   workspace.appendChild(canvasArea);
   workspace.appendChild(propertiesPanel);
 
-  return workspace;
+  return {
+    element: workspace,
+    getGraph: () => canvasEngine.getGraph(),
+  };
+}
+
+function createSlackConnectionBadge(connection: SlackConnectionSummary): HTMLElement {
+  if (!connection.configured) {
+    return createBadge({
+      label: 'Slack not connected',
+      variant: 'warning',
+    });
+  }
+
+  const workspace = connection.teamName ?? 'Connected';
+  return createBadge({
+    label: `Slack: ${workspace}`,
+    variant: 'success',
+  });
 }
 
 function escapeHtml(value: string): string {
@@ -534,26 +565,212 @@ export async function renderEditorPage(
     return;
   }
 
+  const projectId = activeProject.id;
+  const projectName = activeProject.name;
+
+  const [slackConnectionResult, initialGraph] = await Promise.all([
+    window.electronAPI.getSlackConnection({ projectId }),
+    window.electronAPI.getFlowGraph({ projectId }),
+  ]);
+
+  let slackConnection = slackConnectionResult;
+  let runtimeStatus = runtimeState.status;
+
+  type SaveState = 'saved' | 'saving' | 'error';
+  let saveState: SaveState = 'saved';
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
   const page = document.createElement('div');
   page.className = 'editor-page';
 
-  const badge = STATUS_BADGE[runtimeState.status];
+  const saveBadgeHost = document.createElement('div');
+  saveBadgeHost.className = 'editor-page__save-badge';
+
+  const runtimeBadgeHost = document.createElement('div');
+  runtimeBadgeHost.className = 'editor-page__runtime-badge';
+
+  const runtimeControlsHost = document.createElement('div');
+  runtimeControlsHost.className = 'editor-page__runtime-controls';
+
+  const slackBadgeHost = document.createElement('div');
+  slackBadgeHost.className = 'editor-page__slack-badge';
+
+  function renderSaveBadge(): void {
+    const labels: Record<SaveState, { label: string; variant: 'default' | 'success' | 'danger' }> =
+      {
+        saved: { label: 'Saved', variant: 'success' },
+        saving: { label: 'Saving…', variant: 'default' },
+        error: { label: 'Save failed', variant: 'danger' },
+      };
+    const badge = labels[saveState];
+    saveBadgeHost.replaceChildren(createBadge({ label: badge.label, variant: badge.variant }));
+  }
+
+  function renderRuntimeBadge(): void {
+    const badge = STATUS_BADGE[runtimeStatus];
+    runtimeBadgeHost.replaceChildren(createBadge({ label: badge.label, variant: badge.variant }));
+  }
+
+  function renderSlackBadge(): void {
+    slackBadgeHost.replaceChildren(createSlackConnectionBadge(slackConnection));
+  }
+
+  async function persistGraph(graph: FlowGraph): Promise<void> {
+    saveState = 'saving';
+    renderSaveBadge();
+
+    try {
+      await window.electronAPI.saveFlowGraph({
+        projectId,
+        graph,
+      });
+      saveState = 'saved';
+    } catch (error) {
+      console.error('Failed to save flow:', error);
+      saveState = 'error';
+    }
+
+    renderSaveBadge();
+  }
+
+  function scheduleSave(graph: FlowGraph): void {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+    }
+
+    saveState = 'saving';
+    renderSaveBadge();
+
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void persistGraph(graph);
+    }, 500);
+  }
+
+  async function flushPendingSave(getGraph: () => FlowGraph): Promise<void> {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      await persistGraph(getGraph());
+    }
+  }
+
+  function renderRuntimeControls(): void {
+    runtimeControlsHost.replaceChildren();
+
+    if (runtimeStatus === 'running' || runtimeStatus === 'paused' || runtimeStatus === 'error') {
+      runtimeControlsHost.appendChild(
+        createButton({
+          label: 'Stop',
+          variant: 'secondary',
+          size: 'sm',
+          onClick: () => {
+            void (async () => {
+              try {
+                const state = await window.electronAPI.stopBot();
+                runtimeStatus = state.status;
+                renderRuntimeBadge();
+                renderRuntimeControls();
+              } catch (error) {
+                console.error('Failed to stop bot:', error);
+              }
+            })();
+          },
+        }),
+      );
+
+      runtimeControlsHost.appendChild(
+        createButton({
+          label: 'Restart',
+          variant: 'secondary',
+          size: 'sm',
+          onClick: () => {
+            void (async () => {
+              try {
+                const state = await window.electronAPI.restartBot();
+                runtimeStatus = state.status;
+                renderRuntimeBadge();
+                renderRuntimeControls();
+              } catch (error) {
+                console.error('Failed to restart bot:', error);
+              }
+            })();
+          },
+        }),
+      );
+      return;
+    }
+
+    runtimeControlsHost.appendChild(
+      createButton({
+        label: 'Start',
+        variant: 'primary',
+        size: 'sm',
+        onClick: () => {
+          void (async () => {
+            try {
+              const state = await window.electronAPI.startBot();
+              runtimeStatus = state.status;
+              renderRuntimeBadge();
+              renderRuntimeControls();
+            } catch (error) {
+              console.error('Failed to start bot:', error);
+            }
+          })();
+        },
+      }),
+    );
+  }
+
+  const workspace = createEditorWorkspace({
+    initialGraph,
+    onGraphChange: scheduleSave,
+  });
+
+  renderSaveBadge();
+  renderRuntimeBadge();
+  renderSlackBadge();
+  renderRuntimeControls();
 
   const topbar = createTopBar({
-    title: activeProject.name,
+    title: projectName,
     subtitle: 'Flow editor',
     actions: [
-      createBadge({ label: badge.label, variant: badge.variant }),
+      saveBadgeHost,
+      slackBadgeHost,
+      runtimeBadgeHost,
+      runtimeControlsHost,
+      createButton({
+        label: 'Slack setup',
+        variant: 'secondary',
+        size: 'sm',
+        onClick: () => {
+          openSlackConnectionModal({
+            projectId,
+            initialConnection: slackConnection,
+            onConnectionChanged: async (connection) => {
+              slackConnection = connection;
+              renderSlackBadge();
+            },
+          });
+        },
+      }),
       createButton({
         label: 'Back to home',
         variant: 'secondary',
         size: 'sm',
-        onClick: onBack,
+        onClick: () => {
+          void (async () => {
+            await flushPendingSave(workspace.getGraph);
+            await window.electronAPI.closeBot();
+            onBack();
+          })();
+        },
       }),
     ],
   });
 
   page.appendChild(topbar);
-  page.appendChild(createEditorWorkspace());
+  page.appendChild(workspace.element);
   container.appendChild(page);
 }

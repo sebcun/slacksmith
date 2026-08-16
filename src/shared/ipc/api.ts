@@ -1,5 +1,11 @@
 import type { GetAppInfoResponse } from './contracts';
 import type {
+  GetFlowGraphRequest,
+  GetFlowGraphResponse,
+  SaveFlowGraphRequest,
+  SaveFlowGraphResponse,
+} from './flow-contracts';
+import type {
   CreateProjectRequest,
   CreateProjectResponse,
   DeleteProjectRequest,
@@ -17,7 +23,18 @@ import type {
   GetRuntimeStateResponse,
   OpenBotRequest,
   OpenBotResponse,
+  RestartBotResponse,
+  StartBotResponse,
+  StopBotResponse,
 } from './runtime-contracts';
+import type {
+  ClearSlackConnectionRequest,
+  ClearSlackConnectionResponse,
+  GetSlackConnectionRequest,
+  GetSlackConnectionResponse,
+  SaveSlackConnectionRequest,
+  SaveSlackConnectionResponse,
+} from './slack-contracts';
 
 export interface ElectronAPI {
   getAppInfo: () => Promise<GetAppInfoResponse>;
@@ -30,4 +47,16 @@ export interface ElectronAPI {
   getRuntimeState: () => Promise<GetRuntimeStateResponse>;
   openBot: (request: OpenBotRequest) => Promise<OpenBotResponse>;
   closeBot: () => Promise<CloseBotResponse>;
+  startBot: () => Promise<StartBotResponse>;
+  stopBot: () => Promise<StopBotResponse>;
+  restartBot: () => Promise<RestartBotResponse>;
+  getFlowGraph: (request: GetFlowGraphRequest) => Promise<GetFlowGraphResponse>;
+  saveFlowGraph: (request: SaveFlowGraphRequest) => Promise<SaveFlowGraphResponse>;
+  getSlackConnection: (request: GetSlackConnectionRequest) => Promise<GetSlackConnectionResponse>;
+  saveSlackConnection: (
+    request: SaveSlackConnectionRequest,
+  ) => Promise<SaveSlackConnectionResponse>;
+  clearSlackConnection: (
+    request: ClearSlackConnectionRequest,
+  ) => Promise<ClearSlackConnectionResponse>;
 }

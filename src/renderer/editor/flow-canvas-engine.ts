@@ -111,6 +111,31 @@ export class FlowCanvasEngine {
     };
   }
 
+  loadGraph(graph: FlowGraph): void {
+    this.graph = {
+      nodes: graph.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        config: { ...node.config },
+      })),
+      edges: graph.edges.map((edge) => ({ ...edge })),
+    };
+
+    this.selectedNodeId = null;
+    this.nodesLayer.replaceChildren();
+    this.clearConnectionDraft();
+
+    for (const node of this.graph.nodes) {
+      if (getComponentDefinition(node.typeId)) {
+        this.renderNode(node);
+      }
+    }
+
+    this.renderEdges();
+    this.syncEmptyState();
+    this.options.onSelectionChange?.(null);
+  }
+
   getZoomPercent(): number {
     return Math.round(this.viewport.zoom * 100);
   }

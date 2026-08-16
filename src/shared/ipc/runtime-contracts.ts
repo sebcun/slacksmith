@@ -16,7 +16,18 @@ export type OpenBotResponse = BotRuntimeState;
 
 export type CloseBotResponse = BotRuntimeState;
 
-export type RuntimeErrorCode = 'PROJECT_NOT_FOUND' | 'ALREADY_OPEN';
+export type StartBotResponse = BotRuntimeState;
+
+export type StopBotResponse = BotRuntimeState;
+
+export type RestartBotResponse = BotRuntimeState;
+
+export type RuntimeErrorCode =
+  | 'PROJECT_NOT_FOUND'
+  | 'ALREADY_OPEN'
+  | 'NOT_OPEN'
+  | 'ALREADY_RUNNING'
+  | 'NOT_RUNNING';
 
 export class BotRuntimeError extends Error {
   readonly code: RuntimeErrorCode;

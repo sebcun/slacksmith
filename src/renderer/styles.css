@@ -815,6 +815,108 @@ body {
   color: var(--color-danger);
 }
 
+/* SLACK CONNECTION */
+
+.editor-page__slack-badge {
+  display: flex;
+  align-items: center;
+}
+
+.editor-page__save-badge,
+.editor-page__runtime-badge {
+  display: flex;
+  align-items: center;
+}
+
+.editor-page__runtime-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.slack-connection-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.slack-connection-modal__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.slack-connection-modal__intro {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: var(--line-height-relaxed);
+}
+
+.slack-connection-modal__steps {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+}
+
+.slack-connection-modal__link {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.slack-connection-modal__link:hover {
+  text-decoration: underline;
+}
+
+.slack-connection-modal__status {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+}
+
+.slack-connection-modal__status--disconnected {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.slack-connection-modal__status--connected {
+  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  background-color: color-mix(in srgb, var(--color-success) 8%, var(--color-bg-subtle));
+}
+
+.slack-connection-modal__status-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.slack-connection-modal__status-details {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.slack-connection-modal__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.slack-connection-modal__form-error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+
+.slack-connection-modal__disconnect {
+  margin-right: auto;
+}
+
 /* COMPONENTS SHOWCASE PAGE */
 
 .showcase-page {

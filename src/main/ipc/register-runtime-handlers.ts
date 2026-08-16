@@ -7,6 +7,9 @@ import {
   closeBot,
   getRuntimeState,
   openBot,
+  restartBot,
+  startBot,
+  stopBot,
 } from '../runtime/bot-runtime-service';
 
 function rethrowRuntimeError(error: unknown): never {
@@ -36,5 +39,29 @@ export function registerRuntimeIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.RUNTIME_CLOSE_BOT, async () => {
     return closeBot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RUNTIME_START_BOT, async () => {
+    try {
+      return startBot();
+    } catch (error) {
+      rethrowRuntimeError(error);
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RUNTIME_STOP_BOT, async () => {
+    try {
+      return stopBot();
+    } catch (error) {
+      rethrowRuntimeError(error);
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RUNTIME_RESTART_BOT, async () => {
+    try {
+      return restartBot();
+    } catch (error) {
+      rethrowRuntimeError(error);
+    }
   });
 }
