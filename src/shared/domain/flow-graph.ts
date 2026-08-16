@@ -155,6 +155,13 @@ function migrateRawFlowGraph(value: unknown): unknown {
     })
     .filter((node) => node !== null);
 
+  const nodeTypeById = new Map<string, string>();
+  for (const node of nodes) {
+    if (isRecord(node) && typeof node.id === 'string' && typeof node.typeId === 'string') {
+      nodeTypeById.set(node.id, node.typeId);
+    }
+  }
+
   const edges = value.edges
     .map((edge) => {
       if (!isRecord(edge)) {
@@ -168,12 +175,29 @@ function migrateRawFlowGraph(value: unknown): unknown {
         return null;
       }
 
-      if (edge.sourcePortId === 'match') {
-        return { ...edge, sourcePortId: 'true' };
+      const sourceTypeId =
+        typeof edge.sourceNodeId === 'string'
+          ? nodeTypeById.get(edge.sourceNodeId)
+          : undefined;
+
+      if (sourceTypeId === 'if-else') {
+        if (edge.sourcePortId === 'match') {
+          return { ...edge, sourcePortId: 'true' };
+        }
+
+        if (edge.sourcePortId === 'no-match') {
+          return { ...edge, sourcePortId: 'false' };
+        }
       }
 
-      if (edge.sourcePortId === 'no-match') {
-        return { ...edge, sourcePortId: 'false' };
+      if (sourceTypeId === 'channel-match') {
+        if (edge.sourcePortId === 'true') {
+          return { ...edge, sourcePortId: 'match' };
+        }
+
+        if (edge.sourcePortId === 'false') {
+          return { ...edge, sourcePortId: 'no-match' };
+        }
       }
 
       return edge;

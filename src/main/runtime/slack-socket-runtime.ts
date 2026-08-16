@@ -46,6 +46,7 @@ export class SlackSocketRuntime {
       appToken: this.slackConfig.appToken,
       socketMode: true,
       signingSecret: this.slackConfig.signingSecret,
+      botUserId: this.slackConfig.botUserId,
       logLevel: LogLevel.ERROR,
     });
 
@@ -87,25 +88,35 @@ export class SlackSocketRuntime {
     const slashTriggers = triggerNodes.filter((node) => node.typeId === 'slash-command');
 
     if (messageTriggers.length > 0) {
-      this.app.event('message', async ({ event, client }) => {
-        const slackEvent = event as GenericSlackEvent;
+      this.app.message(async ({ message, client }) => {
+        const slackEvent = message as GenericSlackEvent;
 
         if (slackEvent.subtype || slackEvent.bot_id) {
           return;
         }
 
-        if (slackEvent.user === this.slackConfig.botUserId) {
+        if (!slackEvent.user || slackEvent.user === this.slackConfig.botUserId) {
           return;
         }
+
+        const channelId = slackEvent.channel ?? '';
+        const text = slackEvent.text ?? '';
+
+        this.logger.info('slack', `Message received in ${channelId}`, {
+          details: {
+            userId: slackEvent.user,
+            textPreview: text.length > 80 ? `${text.slice(0, 79)}…` : text,
+          },
+        });
 
         for (const triggerNode of messageTriggers) {
           await this.runFlow(
             {
               triggerNodeId: triggerNode.id,
               type: 'message-received',
-              channelId: slackEvent.channel ?? '',
-              userId: slackEvent.user ?? '',
-              text: slackEvent.text ?? '',
+              channelId,
+              userId: slackEvent.user,
+              text,
               messageTs: slackEvent.ts,
             },
             client,

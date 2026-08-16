@@ -219,6 +219,36 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
+    id: 'reply',
+    categoryId: 'actions',
+    name: 'Reply',
+    description: 'Reply to a message in a thread',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'message',
+        label: 'Message',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'alsoSendInChannel',
+        label: 'Also send in channel',
+        type: 'boolean',
+        description:
+          'When enabled, the reply is also posted to the channel instead of only in the thread.',
+        defaultValue: false,
+      },
+    ],
+    execution: {
+      handlerId: 'action.reply',
+    },
+  },
+  {
     id: 'add-reaction',
     categoryId: 'actions',
     name: 'Add reaction',

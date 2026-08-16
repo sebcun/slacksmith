@@ -92,6 +92,34 @@ async function resolveDefaultSlackChannel(slackClient: WebClient): Promise<strin
   throw new Error('Could not find a default channel to send the message.');
 }
 
+async function resolveConfiguredChannelId(
+  configuredChannel: string,
+  slackClient: WebClient,
+): Promise<string> {
+  const trimmed = configuredChannel.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+
+  if (/^[CGD][A-Z0-9]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const channelName = trimmed.replace(/^#/, '').toLowerCase();
+  const result = await slackClient.conversations.list({
+    types: 'public_channel,private_channel',
+    exclude_archived: true,
+    limit: 200,
+  });
+
+  const matchedChannel = result.channels?.find(
+    (channel: { id?: string; name?: string }) =>
+      channel.name?.toLowerCase() === channelName,
+  );
+
+  return matchedChannel?.id ?? trimmed;
+}
+
 async function resolveSendMessageChannel(
   configuredChannel: string,
   context: FlowExecutionContext,
@@ -199,6 +227,36 @@ async function executeNode(
         break;
       }
 
+      case 'action.reply': {
+        const message = fieldValue('message');
+        const alsoSendInChannel = resolveConfigBoolean(node.config.alsoSendInChannel);
+        const channel = context.trigger.channelId;
+        const threadTs = context.trigger.messageTs;
+
+        if (!threadTs) {
+          throw new Error('No message timestamp available to reply to.');
+        }
+
+        await context.slackClient.chat.postMessage({
+          channel,
+          text: message,
+          thread_ts: threadTs,
+          reply_broadcast: alsoSendInChannel,
+        });
+
+        context.logger.info(
+          'execution',
+          alsoSendInChannel
+            ? `Replied in thread and posted to ${channel}`
+            : `Replied in thread on ${channel}`,
+          {
+            nodeId: node.id,
+            nodeName: node.name,
+          },
+        );
+        break;
+      }
+
       case 'action.add-reaction': {
         const emoji = fieldValue('emoji');
         const channel = context.trigger.channelId;
@@ -295,12 +353,22 @@ async function executeNode(
       }
 
       case 'condition.channel-match': {
-        const channel = fieldValue('channel');
-        const matches = channel.trim().length > 0 && channel === context.trigger.channelId;
+        const configuredChannel = fieldValue('channel');
+        const expectedChannelId = await resolveConfiguredChannelId(
+          configuredChannel,
+          context.slackClient,
+        );
+        const matches =
+          expectedChannelId.length > 0 && expectedChannelId === context.trigger.channelId;
 
         context.logger.info('execution', `Channel match ${matches ? 'matched' : 'did not match'}`, {
           nodeId: node.id,
           nodeName: node.name,
+          details: {
+            configuredChannel,
+            expectedChannelId,
+            triggerChannelId: context.trigger.channelId,
+          },
         });
 
         return { outputPortId: matches ? 'match' : 'no-match', terminate: false };
@@ -382,6 +450,15 @@ export async function executeFlowFromTrigger(context: FlowExecutionContext): Pro
   });
 
   let currentNodeId = findNextNode(context.graph, triggerNode.id, 'out');
+
+  if (!currentNodeId) {
+    context.logger.warn('execution', 'Trigger has no connected steps.', {
+      nodeId: triggerNode.id,
+      nodeName: triggerNode.name,
+    });
+    return;
+  }
+
   const visited = new Set<string>();
 
   while (currentNodeId && !context.abortSignal.aborted) {

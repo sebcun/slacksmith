@@ -777,15 +777,18 @@ export async function renderEditorPage(
     runtimeErrorHost.textContent = runtimeErrorMessage;
   }
 
-  function applyRuntimeState(state: { status: BotRuntimeStatus; lastError: string | null }): void {
+  function applyRuntimeState(
+    state: { status: BotRuntimeStatus; lastError: string | null },
+    getGraph: () => FlowGraph,
+  ): void {
     runtimeStatus = state.status;
     runtimeErrorMessage = state.lastError;
     renderRuntimeBadge();
-    renderRuntimeControls();
+    renderRuntimeControls(getGraph);
     renderRuntimeError();
   }
 
-  function renderRuntimeControls(): void {
+  function renderRuntimeControls(getGraph: () => FlowGraph): void {
     runtimeControlsHost.replaceChildren();
 
     if (runtimeStatus === 'running' || runtimeStatus === 'paused' || runtimeStatus === 'error') {
@@ -798,7 +801,7 @@ export async function renderEditorPage(
             void (async () => {
               try {
                 const state = await window.electronAPI.stopBot();
-                applyRuntimeState(state);
+                applyRuntimeState(state, getGraph);
                 await runtimeLogsPanel.refresh();
               } catch (error) {
                 console.error('Failed to stop bot:', error);
@@ -818,8 +821,9 @@ export async function renderEditorPage(
           onClick: () => {
             void (async () => {
               try {
+                await flushPendingSave(getGraph);
                 const state = await window.electronAPI.restartBot();
-                applyRuntimeState(state);
+                applyRuntimeState(state, getGraph);
                 await runtimeLogsPanel.refresh();
               } catch (error) {
                 console.error('Failed to restart bot:', error);
@@ -841,8 +845,9 @@ export async function renderEditorPage(
         onClick: () => {
           void (async () => {
             try {
+              await flushPendingSave(getGraph);
               const state = await window.electronAPI.startBot();
-              applyRuntimeState(state);
+              applyRuntimeState(state, getGraph);
               await runtimeLogsPanel.refresh();
             } catch (error) {
               console.error('Failed to start bot:', error);
@@ -863,7 +868,7 @@ export async function renderEditorPage(
   renderSaveBadge();
   renderRuntimeBadge();
   renderSlackBadge();
-  renderRuntimeControls();
+  renderRuntimeControls(workspace.getGraph);
   renderRuntimeError();
 
   const topbar = createTopBar({
