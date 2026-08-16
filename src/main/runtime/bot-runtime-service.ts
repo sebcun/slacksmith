@@ -7,6 +7,7 @@ import {
   type BotRuntimeState,
 } from '../../shared/ipc/runtime-contracts';
 import { loadFlowGraph } from '../storage/flow-storage-service';
+import { GlobalVariableStore } from '../storage/global-variable-store';
 import { findProjectById } from '../storage/project-storage-service';
 import { loadSlackConfigForProject } from '../storage/slack-config-service';
 import { RuntimeLogger } from './runtime-logger';
@@ -17,6 +18,7 @@ let status: BotRuntimeStatus = 'inactive';
 let lastError: string | null = null;
 let activeSession: SlackSocketRuntime | null = null;
 let activeLogger: RuntimeLogger | null = null;
+let activeGlobalVariableStore: GlobalVariableStore | null = null;
 
 function createRuntimeState(): BotRuntimeState {
   return {
@@ -35,6 +37,11 @@ async function stopExecution(): Promise<void> {
   if (activeSession) {
     await activeSession.stop();
     activeSession = null;
+  }
+
+  if (activeGlobalVariableStore) {
+    await activeGlobalVariableStore.flush();
+    activeGlobalVariableStore = null;
   }
 
   if (status !== 'error') {
@@ -113,10 +120,15 @@ export async function startBot(): Promise<BotRuntimeState> {
   lastError = null;
   activeLogger.info('runtime', `Starting bot "${activeProject.name}".`);
 
+  const globalVariableStore = new GlobalVariableStore(activeProject.path);
+  await globalVariableStore.load();
+  activeGlobalVariableStore = globalVariableStore;
+
   const session = new SlackSocketRuntime(
     slackConfig,
     graph,
     activeLogger,
+    globalVariableStore,
     (message) => {
       setErrorState(message);
     },

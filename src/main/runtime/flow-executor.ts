@@ -1,8 +1,13 @@
 import type { WebClient } from '@slack/web-api';
 
 import { getComponentDefinition } from '../../shared/domain/component-registry';
-import { resolveVariableReferences } from '../../shared/domain/variables';
+import {
+  resolveVariableReferences,
+  setScopedVariable,
+  type VariableScope,
+} from '../../shared/domain/variables';
 import type { FlowEdge, FlowGraph, FlowNode } from '../../shared/domain/flow-graph';
+import type { GlobalVariableStore } from '../storage/global-variable-store';
 import type { RuntimeLogger } from './runtime-logger';
 import { createTriggerVariables, type SlackTriggerPayload } from './trigger-context';
 
@@ -10,6 +15,7 @@ export interface FlowExecutionContext {
   graph: FlowGraph;
   trigger: SlackTriggerPayload;
   variables: Record<string, unknown>;
+  globalVariableStore: GlobalVariableStore;
   slackClient: WebClient;
   logger: RuntimeLogger;
   abortSignal: AbortSignal;
@@ -20,18 +26,16 @@ export interface NodeExecutionResult {
   terminate: boolean;
 }
 
-function resolveConfigString(
-  value: unknown,
-  variables: Record<string, unknown>,
-  supportsVariables: boolean,
-): string {
+function createVariableScope(context: FlowExecutionContext): VariableScope {
+  return {
+    local: context.variables,
+    global: context.globalVariableStore.getSnapshot(),
+  };
+}
+
+function resolveConfigString(value: unknown, scope: VariableScope): string {
   const raw = value === undefined || value === null ? '' : String(value);
-
-  if (!supportsVariables) {
-    return raw;
-  }
-
-  return resolveVariableReferences(raw, variables);
+  return resolveVariableReferences(raw, scope);
 }
 
 function resolveConfigBoolean(value: unknown): boolean {
@@ -191,15 +195,10 @@ async function executeNode(
   }
 
   const handlerId = definition.execution.handlerId;
-  const fieldMap = new Map(definition.fields.map((field) => [field.id, field]));
+  const scope = createVariableScope(context);
 
   function fieldValue(fieldId: string): string {
-    const field = fieldMap.get(fieldId);
-    return resolveConfigString(
-      node.config[fieldId],
-      context.variables,
-      field?.supportsVariables ?? false,
-    );
+    return resolveConfigString(node.config[fieldId], scope);
   }
 
   context.logger.info('execution', `Running ${node.name}`, {
@@ -312,7 +311,10 @@ async function executeNode(
         const storedValue =
           user?.real_name ?? user?.profile?.display_name ?? user?.name ?? userId;
 
-        context.variables[storeAs] = storedValue;
+        const target = setScopedVariable(scope, storeAs, storedValue);
+        if (target === 'global') {
+          context.globalVariableStore.scheduleSave();
+        }
 
         context.logger.info('execution', `Stored user lookup in ${storeAs}`, {
           nodeId: node.id,
@@ -329,7 +331,10 @@ async function executeNode(
           throw new Error('Variable name is required.');
         }
 
-        context.variables[variableName] = value;
+        const target = setScopedVariable(scope, variableName, value);
+        if (target === 'global') {
+          context.globalVariableStore.scheduleSave();
+        }
 
         context.logger.info('execution', `Stored variable ${variableName}`, {
           nodeId: node.id,
@@ -499,17 +504,20 @@ export async function executeFlowFromTrigger(context: FlowExecutionContext): Pro
   });
 }
 
-export function createFlowExecutionContext(
+export async function createFlowExecutionContext(
   graph: FlowGraph,
   trigger: SlackTriggerPayload,
+  triggerNode: FlowNode,
   slackClient: WebClient,
   logger: RuntimeLogger,
   abortSignal: AbortSignal,
-): FlowExecutionContext {
+  globalVariableStore: GlobalVariableStore,
+): Promise<FlowExecutionContext> {
   return {
     graph,
     trigger,
-    variables: createTriggerVariables(trigger),
+    variables: await createTriggerVariables(trigger, triggerNode, slackClient),
+    globalVariableStore,
     slackClient,
     logger,
     abortSignal,

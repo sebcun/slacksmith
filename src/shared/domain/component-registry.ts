@@ -90,7 +90,23 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: 'When a message is posted',
     inputs: [],
     outputs: [TRIGGER_OUTPUT],
-    fields: [],
+    fields: [
+      {
+        id: 'storeAuthor',
+        label: 'Store author',
+        type: 'boolean',
+        description: 'Save the message author as ${author.id} and ${author.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeMessage',
+        label: 'Store message',
+        type: 'boolean',
+        description:
+          'Save the message as ${message.content}, ${message.channel}, and ${message.channel.id}.',
+        defaultValue: true,
+      },
+    ],
     execution: {
       handlerId: 'trigger.message-received',
       isTrigger: true,
@@ -111,6 +127,20 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         description: 'Slash command name without the leading slash.',
         required: true,
         defaultValue: 'hello',
+      },
+      {
+        id: 'storeAuthor',
+        label: 'Store author',
+        type: 'boolean',
+        description: 'Save the command author as ${author.id} and ${author.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeChannel',
+        label: 'Store channel',
+        type: 'boolean',
+        description: 'Save the command channel as ${channel.id} and ${channel.name}.',
+        defaultValue: true,
       },
     ],
     execution: {
@@ -180,7 +210,9 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'channel',
         label: 'Channel',
         type: 'channel',
+        description: appendVariableHint('Channel name, ID, or variable such as ${message.channel.id}.'),
         required: true,
+        supportsVariables: true,
       },
     ],
     execution: {
@@ -333,8 +365,12 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'variableName',
         label: 'Variable name',
         type: 'text',
+        description: appendVariableHint(
+          'Use global. prefix for persistent variables, e.g. global.stats or global.${author.id}.money.',
+        ),
         required: true,
         defaultValue: '',
+        supportsVariables: true,
       },
       {
         id: 'value',

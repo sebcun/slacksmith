@@ -4,6 +4,7 @@ import type { WebClient } from '@slack/web-api';
 import { getComponentDefinition } from '../../shared/domain/component-registry';
 import type { FlowGraph, FlowNode } from '../../shared/domain/flow-graph';
 import type { SlackConfigFile } from '../../shared/domain/slack-config';
+import type { GlobalVariableStore } from '../storage/global-variable-store';
 import {
   createFlowExecutionContext,
   executeFlowFromTrigger,
@@ -28,6 +29,7 @@ export class SlackSocketRuntime {
     private readonly slackConfig: SlackConfigFile,
     private readonly graph: FlowGraph,
     private readonly logger: RuntimeLogger,
+    private readonly globalVariableStore: GlobalVariableStore,
     private readonly onFatalError: (message: string) => void,
   ) {}
 
@@ -166,13 +168,24 @@ export class SlackSocketRuntime {
       return;
     }
 
+    const triggerNode = this.graph.nodes.find((node) => node.id === payload.triggerNodeId);
+
+    if (!triggerNode) {
+      this.logger.error('execution', 'Trigger node not found in flow graph.', {
+        nodeId: payload.triggerNodeId,
+      });
+      return;
+    }
+
     try {
-      const context = createFlowExecutionContext(
+      const context = await createFlowExecutionContext(
         this.graph,
         payload,
+        triggerNode,
         client,
         this.logger,
         this.abortController.signal,
+        this.globalVariableStore,
       );
 
       await executeFlowFromTrigger(context);

@@ -296,41 +296,6 @@ function createCanvasNavigationControls(canvas: FlowCanvasEngine): HTMLElement {
   return toolbar;
 }
 
-function renderPortList(
-  container: HTMLElement,
-  title: string,
-  ports: { id: string; label: string }[],
-): void {
-  const section = document.createElement('div');
-  section.className = 'editor-page__properties-section';
-
-  const heading = document.createElement('h3');
-  heading.className = 'editor-page__properties-section-title';
-  heading.textContent = title;
-  section.appendChild(heading);
-
-  if (ports.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'editor-page__properties-empty';
-    empty.textContent = 'None';
-    section.appendChild(empty);
-  } else {
-    const list = document.createElement('ul');
-    list.className = 'editor-page__properties-list';
-
-    for (const port of ports) {
-      const item = document.createElement('li');
-      item.className = 'editor-page__properties-list-item';
-      item.textContent = port.label;
-      list.appendChild(item);
-    }
-
-    section.appendChild(list);
-  }
-
-  container.appendChild(section);
-}
-
 function renderSelectedNodeProperties(
   body: HTMLElement,
   node: FlowNode,
@@ -366,9 +331,6 @@ function renderSelectedNodeProperties(
 
   summary.append(nameRow, categoryRow, description);
 
-  renderPortList(summary, 'Inputs', definition.inputs);
-  renderPortList(summary, 'Outputs', definition.outputs);
-
   const fieldsSection = document.createElement('div');
   fieldsSection.className = 'editor-page__properties-section';
 
@@ -394,44 +356,6 @@ function renderSelectedNodeProperties(
   }
 
   summary.appendChild(fieldsSection);
-
-  const executionSection = document.createElement('div');
-  executionSection.className = 'editor-page__properties-section';
-
-  const executionTitle = document.createElement('h3');
-  executionTitle.className = 'editor-page__properties-section-title';
-  executionTitle.textContent = 'Execution';
-  executionSection.appendChild(executionTitle);
-
-  const executionRow = document.createElement('div');
-  executionRow.className = 'editor-page__properties-row';
-  executionRow.innerHTML = `
-    <span class="editor-page__properties-label">Handler</span>
-    <span class="editor-page__properties-value editor-page__properties-value--mono">${escapeHtml(definition.execution.handlerId)}</span>
-  `;
-  executionSection.appendChild(executionRow);
-
-  if (definition.execution.isTrigger) {
-    const triggerRow = document.createElement('div');
-    triggerRow.className = 'editor-page__properties-row';
-    triggerRow.innerHTML = `
-      <span class="editor-page__properties-label">Role</span>
-      <span class="editor-page__properties-value">Flow trigger</span>
-    `;
-    executionSection.appendChild(triggerRow);
-  }
-
-  if (definition.execution.terminatesFlow) {
-    const terminateRow = document.createElement('div');
-    terminateRow.className = 'editor-page__properties-row';
-    terminateRow.innerHTML = `
-      <span class="editor-page__properties-label">Role</span>
-      <span class="editor-page__properties-value">Flow terminator</span>
-    `;
-    executionSection.appendChild(terminateRow);
-  }
-
-  summary.appendChild(executionSection);
 
   body.append(summary);
 }
