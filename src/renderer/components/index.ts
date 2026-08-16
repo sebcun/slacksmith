@@ -9,6 +9,7 @@ export {
 export { createCard, type CardOptions } from './Card.js';
 export { createInput, type InputOptions } from './Input.js';
 export { createSelect, type SelectOptions, type SelectOption } from './Select.js';
+export { createCheckbox, type CheckboxOptions } from './Checkbox.js';
 export { createModal, type ModalOptions, type ModalHandle } from './Modal.js';
 export { createBadge, type BadgeOptions, type BadgeVariant } from './Badge.js';
 export { createEmptyState, type EmptyStateOptions } from './EmptyState.js';

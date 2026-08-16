@@ -1,15 +1,21 @@
 import {
   createBadge,
   createButton,
-  createSidebar,
   createTopBar,
-  setSidebarActiveItem,
 } from '../components/index.js';
 import {
   FlowCanvasEngine,
   serializeComponentTemplate,
 } from '../editor/flow-canvas-engine.js';
+import { createNodeConfigForm } from '../editor/node-config-form.js';
 import type { BotRuntimeStatus } from '../../shared/domain/bot-project.js';
+import {
+  COMPONENT_CATEGORIES,
+  getCategoryLabel,
+  getComponentDefinition,
+  getComponentDefinitionsByCategory,
+  type ComponentDefinition,
+} from '../../shared/domain/component-registry.js';
 import type { FlowNode } from '../../shared/domain/flow-graph.js';
 
 const STATUS_BADGE: Record<
@@ -22,97 +28,32 @@ const STATUS_BADGE: Record<
   error: { label: 'Error', variant: 'danger' },
 };
 
-interface ComponentLibraryItem {
-  id: string;
-  name: string;
-  description: string;
-}
-
-interface ComponentLibraryCategory {
-  id: string;
-  label: string;
-  items: ComponentLibraryItem[];
-}
-
-const COMPONENT_LIBRARY: ComponentLibraryCategory[] = [
-  {
-    id: 'triggers',
-    label: 'Triggers',
-    items: [
-      { id: 'message-received', name: 'Message received', description: 'When a message is posted' },
-      { id: 'slash-command', name: 'Slash command', description: 'When a slash command runs' },
-      { id: 'app-mention', name: 'App mention', description: 'When the bot is @mentioned' },
-    ],
-  },
-  {
-    id: 'conditions',
-    label: 'Conditions',
-    items: [
-      { id: 'if-else', name: 'If / else', description: 'Branch based on a condition' },
-      { id: 'compare-value', name: 'Compare value', description: 'Check a value against a rule' },
-      { id: 'channel-match', name: 'Channel match', description: 'Match a specific channel' },
-    ],
-  },
-  {
-    id: 'actions',
-    label: 'Actions',
-    items: [
-      { id: 'send-message', name: 'Send message', description: 'Post a message to a channel' },
-      { id: 'add-reaction', name: 'Add reaction', description: 'React to a message' },
-      { id: 'create-channel', name: 'Create channel', description: 'Create a new channel' },
-    ],
-  },
-  {
-    id: 'data',
-    label: 'Data',
-    items: [
-      { id: 'get-user', name: 'Get user', description: 'Look up a Slack user' },
-      { id: 'store-variable', name: 'Store variable', description: 'Save a value for later' },
-      { id: 'read-variable', name: 'Read variable', description: 'Load a saved value' },
-    ],
-  },
-  {
-    id: 'utilities',
-    label: 'Utilities',
-    items: [
-      { id: 'delay', name: 'Delay', description: 'Wait before continuing' },
-      { id: 'log', name: 'Log', description: 'Write to the debug log' },
-      { id: 'stop-flow', name: 'Stop flow', description: 'End execution here' },
-    ],
-  },
-];
-
-const DEFAULT_CATEGORY_ID = COMPONENT_LIBRARY[0]?.id ?? 'triggers';
+const ALL_CATEGORIES_ID = 'all';
 
 function createComponentLibraryItem(
-  item: ComponentLibraryItem,
-  categoryId: string,
-  onAdd: (categoryId: string, item: ComponentLibraryItem) => void,
+  definition: ComponentDefinition,
+  onAdd: (definition: ComponentDefinition) => void,
 ): HTMLElement {
   const element = document.createElement('button');
   element.type = 'button';
   element.className = 'component-library__item';
-  element.setAttribute('aria-label', `${item.name}: ${item.description}`);
+  element.setAttribute('aria-label', `${definition.name}: ${definition.description}`);
   element.draggable = true;
 
   const name = document.createElement('span');
   name.className = 'component-library__item-name';
-  name.textContent = item.name;
+  name.textContent = definition.name;
   element.appendChild(name);
 
   const description = document.createElement('span');
   description.className = 'component-library__item-description';
-  description.textContent = item.description;
+  description.textContent = definition.description;
   element.appendChild(description);
 
   element.addEventListener('dragstart', (event) => {
     event.dataTransfer?.setData(
       'application/x-slacksmith-component',
-      serializeComponentTemplate({
-        typeId: item.id,
-        name: item.name,
-        categoryId,
-      }),
+      serializeComponentTemplate({ typeId: definition.id }),
     );
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'copy';
@@ -120,63 +61,140 @@ function createComponentLibraryItem(
   });
 
   element.addEventListener('click', () => {
-    onAdd(categoryId, item);
+    onAdd(definition);
   });
 
   return element;
 }
 
+function createComponentList(
+  definitions: ComponentDefinition[],
+  ariaLabel: string,
+  onAdd: (definition: ComponentDefinition) => void,
+): HTMLElement {
+  const list = document.createElement('div');
+  list.className = 'component-library__list';
+  list.setAttribute('role', 'list');
+  list.setAttribute('aria-label', ariaLabel);
+
+  for (const definition of definitions) {
+    const listItem = document.createElement('div');
+    listItem.className = 'component-library__list-item';
+    listItem.setAttribute('role', 'listitem');
+    listItem.appendChild(createComponentLibraryItem(definition, onAdd));
+    list.appendChild(listItem);
+  }
+
+  return list;
+}
+
 function createComponentLibraryPanel(
-  onAdd: (categoryId: string, item: ComponentLibraryItem) => void,
+  onAdd: (definition: ComponentDefinition) => void,
 ): HTMLElement {
   const panel = document.createElement('aside');
   panel.className = 'editor-page__library';
   panel.setAttribute('aria-label', 'Component library');
 
+  const library = document.createElement('div');
+  library.className = 'component-library';
+
+  const header = document.createElement('div');
+  header.className = 'component-library__header';
+
+  const title = document.createElement('h2');
+  title.className = 'component-library__title';
+  title.textContent = 'Components';
+  header.appendChild(title);
+  library.appendChild(header);
+
+  const filters = document.createElement('div');
+  filters.className = 'component-library__filters';
+  filters.setAttribute('role', 'tablist');
+  filters.setAttribute('aria-label', 'Component categories');
+
   const listHost = document.createElement('div');
   listHost.className = 'component-library__list-host';
 
-  const sidebar = createSidebar({
-    title: 'Components',
-    items: COMPONENT_LIBRARY.map((category) => ({
-      id: category.id,
-      label: category.label,
-    })),
-    activeId: DEFAULT_CATEGORY_ID,
-    onSelect: (categoryId) => {
-      showCategory(categoryId);
-    },
-    content: listHost,
-  });
+  let activeCategoryId = ALL_CATEGORIES_ID;
 
-  function showCategory(categoryId: string): void {
-    setSidebarActiveItem(sidebar, categoryId);
+  const filterButtons: HTMLButtonElement[] = [];
 
-    const category = COMPONENT_LIBRARY.find((entry) => entry.id === categoryId);
+  function setActiveFilter(categoryId: string): void {
+    activeCategoryId = categoryId;
+
+    for (const button of filterButtons) {
+      const isActive = button.dataset.categoryId === categoryId;
+      button.classList.toggle('component-library__filter--active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      button.tabIndex = isActive ? 0 : -1;
+    }
+
+    renderComponentList();
+  }
+
+  function createFilterButton(id: string, label: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'component-library__filter';
+    button.dataset.categoryId = id;
+    button.textContent = label;
+    button.setAttribute('role', 'tab');
+    button.addEventListener('click', () => {
+      setActiveFilter(id);
+    });
+    filterButtons.push(button);
+    filters.appendChild(button);
+    return button;
+  }
+
+  createFilterButton(ALL_CATEGORIES_ID, 'All');
+  for (const category of COMPONENT_CATEGORIES) {
+    createFilterButton(category.id, category.label);
+  }
+
+  function renderComponentList(): void {
     listHost.replaceChildren();
 
-    if (!category) {
+    if (activeCategoryId === ALL_CATEGORIES_ID) {
+      for (const category of COMPONENT_CATEGORIES) {
+        const components = getComponentDefinitionsByCategory(category.id);
+        if (components.length === 0) {
+          continue;
+        }
+
+        const section = document.createElement('section');
+        section.className = 'component-library__section';
+
+        const sectionTitle = document.createElement('h3');
+        sectionTitle.className = 'component-library__section-title';
+        sectionTitle.textContent = category.label;
+        section.appendChild(sectionTitle);
+
+        section.appendChild(
+          createComponentList(components, `${category.label} components`, onAdd),
+        );
+        listHost.appendChild(section);
+      }
       return;
     }
 
-    const list = document.createElement('div');
-    list.className = 'component-library__list';
-    list.setAttribute('role', 'list');
-    list.setAttribute('aria-label', `${category.label} components`);
-
-    for (const item of category.items) {
-      const listItem = document.createElement('div');
-      listItem.className = 'component-library__list-item';
-      listItem.setAttribute('role', 'listitem');
-      listItem.appendChild(createComponentLibraryItem(item, category.id, onAdd));
-      list.appendChild(listItem);
-    }
-
-    listHost.appendChild(list);
+    const components = getComponentDefinitionsByCategory(
+      activeCategoryId as (typeof COMPONENT_CATEGORIES)[number]['id'],
+    );
+    listHost.appendChild(
+      createComponentList(
+        components,
+        `${getCategoryLabel(activeCategoryId)} components`,
+        onAdd,
+      ),
+    );
   }
 
-  panel.appendChild(sidebar);
-  showCategory(DEFAULT_CATEGORY_ID);
+  library.appendChild(filters);
+  library.appendChild(listHost);
+  panel.appendChild(library);
+
+  setActiveFilter(ALL_CATEGORIES_ID);
 
   return panel;
 }
@@ -275,8 +293,52 @@ function createCanvasNavigationControls(canvas: FlowCanvasEngine): HTMLElement {
   return toolbar;
 }
 
-function renderSelectedNodeProperties(body: HTMLElement, node: FlowNode): void {
+function renderPortList(
+  container: HTMLElement,
+  title: string,
+  ports: { id: string; label: string }[],
+): void {
+  const section = document.createElement('div');
+  section.className = 'editor-page__properties-section';
+
+  const heading = document.createElement('h3');
+  heading.className = 'editor-page__properties-section-title';
+  heading.textContent = title;
+  section.appendChild(heading);
+
+  if (ports.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'editor-page__properties-empty';
+    empty.textContent = 'None';
+    section.appendChild(empty);
+  } else {
+    const list = document.createElement('ul');
+    list.className = 'editor-page__properties-list';
+
+    for (const port of ports) {
+      const item = document.createElement('li');
+      item.className = 'editor-page__properties-list-item';
+      item.textContent = port.label;
+      list.appendChild(item);
+    }
+
+    section.appendChild(list);
+  }
+
+  container.appendChild(section);
+}
+
+function renderSelectedNodeProperties(
+  body: HTMLElement,
+  node: FlowNode,
+  onConfigChange: (fieldId: string, value: unknown) => void,
+): void {
   body.replaceChildren();
+
+  const definition = getComponentDefinition(node.typeId);
+  if (!definition) {
+    return;
+  }
 
   const summary = document.createElement('div');
   summary.className = 'editor-page__properties-summary';
@@ -285,21 +347,89 @@ function renderSelectedNodeProperties(body: HTMLElement, node: FlowNode): void {
   nameRow.className = 'editor-page__properties-row';
   nameRow.innerHTML = `
     <span class="editor-page__properties-label">Name</span>
-    <span class="editor-page__properties-value">${escapeHtml(node.name)}</span>
+    <span class="editor-page__properties-value">${escapeHtml(definition.name)}</span>
   `;
 
   const categoryRow = document.createElement('div');
   categoryRow.className = 'editor-page__properties-row';
   categoryRow.innerHTML = `
     <span class="editor-page__properties-label">Category</span>
-    <span class="editor-page__properties-value">${escapeHtml(formatCategoryLabel(node.categoryId))}</span>
+    <span class="editor-page__properties-value">${escapeHtml(getCategoryLabel(definition.categoryId))}</span>
   `;
 
-  const hint = document.createElement('p');
-  hint.className = 'editor-page__properties-hint';
-  hint.textContent = 'editor go here with properties and stuff';
+  const description = document.createElement('p');
+  description.className = 'editor-page__properties-description';
+  description.textContent = definition.description;
 
-  summary.append(nameRow, categoryRow, hint);
+  summary.append(nameRow, categoryRow, description);
+
+  renderPortList(summary, 'Inputs', definition.inputs);
+  renderPortList(summary, 'Outputs', definition.outputs);
+
+  const fieldsSection = document.createElement('div');
+  fieldsSection.className = 'editor-page__properties-section';
+
+  const fieldsTitle = document.createElement('h3');
+  fieldsTitle.className = 'editor-page__properties-section-title';
+  fieldsTitle.textContent = 'Settings';
+  fieldsSection.appendChild(fieldsTitle);
+
+  if (definition.fields.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'editor-page__properties-empty';
+    empty.textContent = 'No settings for this component.';
+    fieldsSection.appendChild(empty);
+  } else {
+    fieldsSection.appendChild(
+      createNodeConfigForm({
+        nodeId: node.id,
+        fields: definition.fields,
+        config: node.config,
+        onChange: onConfigChange,
+      }),
+    );
+  }
+
+  summary.appendChild(fieldsSection);
+
+  const executionSection = document.createElement('div');
+  executionSection.className = 'editor-page__properties-section';
+
+  const executionTitle = document.createElement('h3');
+  executionTitle.className = 'editor-page__properties-section-title';
+  executionTitle.textContent = 'Execution';
+  executionSection.appendChild(executionTitle);
+
+  const executionRow = document.createElement('div');
+  executionRow.className = 'editor-page__properties-row';
+  executionRow.innerHTML = `
+    <span class="editor-page__properties-label">Handler</span>
+    <span class="editor-page__properties-value editor-page__properties-value--mono">${escapeHtml(definition.execution.handlerId)}</span>
+  `;
+  executionSection.appendChild(executionRow);
+
+  if (definition.execution.isTrigger) {
+    const triggerRow = document.createElement('div');
+    triggerRow.className = 'editor-page__properties-row';
+    triggerRow.innerHTML = `
+      <span class="editor-page__properties-label">Role</span>
+      <span class="editor-page__properties-value">Flow trigger</span>
+    `;
+    executionSection.appendChild(triggerRow);
+  }
+
+  if (definition.execution.terminatesFlow) {
+    const terminateRow = document.createElement('div');
+    terminateRow.className = 'editor-page__properties-row';
+    terminateRow.innerHTML = `
+      <span class="editor-page__properties-label">Role</span>
+      <span class="editor-page__properties-value">Flow terminator</span>
+    `;
+    executionSection.appendChild(terminateRow);
+  }
+
+  summary.appendChild(executionSection);
+
   body.append(summary);
 }
 
@@ -340,7 +470,9 @@ function createEditorWorkspace(): HTMLElement {
 
   const { panel: propertiesPanel, body: propertiesBody } = createPropertiesPanel();
 
-  const canvasEngine = new FlowCanvasEngine({
+  let canvasEngine: FlowCanvasEngine;
+
+  canvasEngine = new FlowCanvasEngine({
     onSelectionChange: (node) => {
       if (!node) {
         setPropertiesPanelVisible(propertiesPanel, false);
@@ -348,17 +480,15 @@ function createEditorWorkspace(): HTMLElement {
         return;
       }
 
-      renderSelectedNodeProperties(propertiesBody, node);
+      renderSelectedNodeProperties(propertiesBody, node, (fieldId, value) => {
+        canvasEngine.updateNodeConfig(node.id, fieldId, value);
+      });
       setPropertiesPanelVisible(propertiesPanel, true);
     },
   });
 
-  const library = createComponentLibraryPanel((categoryId, item) => {
-    canvasEngine.addNode({
-      typeId: item.id,
-      name: item.name,
-      categoryId,
-    });
+  const library = createComponentLibraryPanel((definition) => {
+    canvasEngine.addNode({ typeId: definition.id });
   });
 
   const canvasArea = document.createElement('section');
@@ -380,10 +510,6 @@ function createEditorWorkspace(): HTMLElement {
   workspace.appendChild(propertiesPanel);
 
   return workspace;
-}
-
-function formatCategoryLabel(categoryId: string): string {
-  return categoryId.charAt(0).toUpperCase() + categoryId.slice(1);
 }
 
 function escapeHtml(value: string): string {
@@ -415,7 +541,7 @@ export async function renderEditorPage(
 
   const topbar = createTopBar({
     title: activeProject.name,
-    subtitle: 'Bot editor',
+    subtitle: 'Flow editor',
     actions: [
       createBadge({ label: badge.label, variant: badge.variant }),
       createButton({

@@ -320,6 +320,36 @@ select.field__control {
   cursor: pointer;
 }
 
+.field--checkbox .field__checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.field__control--checkbox {
+  width: auto;
+  margin-top: 0.125rem;
+  padding: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.field__control--checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.field__checkbox-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  cursor: pointer;
+  line-height: var(--line-height-relaxed);
+}
+
+.field--checkbox .field__hint {
+  margin-left: calc(1rem + var(--space-2));
+}
+
 /* ── Badge ──────────────────────────────────────────────── */
 
 .badge {

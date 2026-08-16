@@ -6,6 +6,11 @@ import {
   type FlowNode,
   type FlowNodeTemplate,
 } from '../../shared/domain/flow-graph.js';
+import {
+  getCategoryLabel,
+  getComponentDefinition,
+  type ComponentPortDefinition,
+} from '../../shared/domain/component-registry.js';
 
 const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200] as const;
 const DEFAULT_ZOOM_INDEX = 2;
@@ -27,6 +32,7 @@ interface ViewportState {
 
 interface PortPointerState {
   nodeId: string;
+  portId: string;
   pointerId: number;
 }
 
@@ -117,7 +123,11 @@ export class FlowCanvasEngine {
     return ZOOM_LEVELS.length - 1;
   }
 
-  addNode(template: FlowNodeTemplate, position?: { x: number; y: number }): FlowNode {
+  addNode(template: FlowNodeTemplate, position?: { x: number; y: number }): FlowNode | null {
+    if (!getComponentDefinition(template.typeId)) {
+      return null;
+    }
+
     const nodePosition = position ?? this.getViewportCenterPosition();
     const node = createFlowNode(template, nodePosition);
     this.graph.nodes.push(node);
@@ -126,6 +136,16 @@ export class FlowCanvasEngine {
     this.syncEmptyState();
     this.notifyGraphChange();
     return node;
+  }
+
+  updateNodeConfig(nodeId: string, fieldId: string, value: unknown): void {
+    const node = this.graph.nodes.find((entry) => entry.id === nodeId);
+    if (!node) {
+      return;
+    }
+
+    node.config[fieldId] = value;
+    this.notifyGraphChange();
   }
 
   deleteSelectedNode(): void {
@@ -248,9 +268,14 @@ export class FlowCanvasEngine {
       }
 
       if (portType === 'output') {
+        const portId = port.getAttribute('data-port-id');
+        if (!portId) {
+          return;
+        }
+
         event.preventDefault();
         event.stopPropagation();
-        this.connectionDraft = { nodeId, pointerId: event.pointerId };
+        this.connectionDraft = { nodeId, portId, pointerId: event.pointerId };
         this.root.setPointerCapture(event.pointerId);
         this.ensureConnectionPreview();
         this.updateConnectionPreview(event.clientX, event.clientY);
@@ -320,9 +345,19 @@ export class FlowCanvasEngine {
       const port = target instanceof Element ? target.closest('[data-port="input"]') : null;
       const nodeElement = port?.closest('[data-node-id]');
       const targetNodeId = nodeElement?.getAttribute('data-node-id') ?? null;
+      const targetPortId = port?.getAttribute('data-port-id') ?? null;
 
-      if (targetNodeId && targetNodeId !== this.connectionDraft.nodeId) {
-        this.tryCreateEdge(this.connectionDraft.nodeId, targetNodeId);
+      if (
+        targetNodeId &&
+        targetPortId &&
+        targetNodeId !== this.connectionDraft.nodeId
+      ) {
+        this.tryCreateEdge(
+          this.connectionDraft.nodeId,
+          this.connectionDraft.portId,
+          targetNodeId,
+          targetPortId,
+        );
       }
 
       this.clearConnectionDraft();
@@ -383,15 +418,36 @@ export class FlowCanvasEngine {
     this.deleteSelectedNode();
   }
 
-  private tryCreateEdge(sourceNodeId: string, targetNodeId: string): void {
+  private tryCreateEdge(
+    sourceNodeId: string,
+    sourcePortId: string,
+    targetNodeId: string,
+    targetPortId: string,
+  ): void {
+    const sourceDefinition = this.getNodeDefinition(sourceNodeId);
+    const targetDefinition = this.getNodeDefinition(targetNodeId);
+    if (!sourceDefinition || !targetDefinition) {
+      return;
+    }
+
+    const sourcePort = sourceDefinition.outputs.find((port) => port.id === sourcePortId);
+    const targetPort = targetDefinition.inputs.find((port) => port.id === targetPortId);
+    if (!sourcePort || !targetPort) {
+      return;
+    }
+
     const duplicate = this.graph.edges.some(
-      (edge) => edge.sourceNodeId === sourceNodeId && edge.targetNodeId === targetNodeId,
+      (edge) =>
+        edge.sourceNodeId === sourceNodeId &&
+        edge.sourcePortId === sourcePortId &&
+        edge.targetNodeId === targetNodeId &&
+        edge.targetPortId === targetPortId,
     );
     if (duplicate || sourceNodeId === targetNodeId) {
       return;
     }
 
-    const edge = createFlowEdge(sourceNodeId, targetNodeId);
+    const edge = createFlowEdge(sourceNodeId, sourcePortId, targetNodeId, targetPortId);
     this.graph.edges.push(edge);
     this.renderEdges();
     this.notifyGraphChange();
@@ -412,26 +468,36 @@ export class FlowCanvasEngine {
   }
 
   private renderNode(node: FlowNode): void {
+    const definition = getComponentDefinition(node.typeId);
+    if (!definition) {
+      return;
+    }
+
+    const portCount = Math.max(definition.inputs.length, definition.outputs.length, 1);
+    const nodeHeight = getNodeHeight(portCount);
+
     const element = document.createElement('article');
     element.className = 'flow-canvas__node';
     element.dataset.nodeId = node.id;
     element.dataset.categoryId = node.categoryId;
     element.style.transform = `translate(${node.position.x}px, ${node.position.y}px)`;
+    element.style.minHeight = `${nodeHeight}px`;
     element.setAttribute('aria-label', node.name);
 
-    const inputPort = document.createElement('button');
-    inputPort.type = 'button';
-    inputPort.className = 'flow-canvas__port flow-canvas__port--input';
-    inputPort.dataset.port = 'input';
-    inputPort.setAttribute('aria-label', `${node.name} input`);
-    inputPort.tabIndex = -1;
+    const inputPorts = document.createElement('div');
+    inputPorts.className = 'flow-canvas__ports flow-canvas__ports--input';
+    for (const [index, port] of definition.inputs.entries()) {
+      inputPorts.appendChild(
+        this.createPortElement(node, port, index, definition.inputs.length, nodeHeight),
+      );
+    }
 
     const body = document.createElement('div');
     body.className = 'flow-canvas__node-body';
 
     const category = document.createElement('span');
     category.className = 'flow-canvas__node-category';
-    category.textContent = formatCategoryLabel(node.categoryId);
+    category.textContent = getCategoryLabel(node.categoryId);
 
     const title = document.createElement('span');
     title.className = 'flow-canvas__node-title';
@@ -439,16 +505,42 @@ export class FlowCanvasEngine {
 
     body.append(category, title);
 
-    const outputPort = document.createElement('button');
-    outputPort.type = 'button';
-    outputPort.className = 'flow-canvas__port flow-canvas__port--output';
-    outputPort.dataset.port = 'output';
-    outputPort.setAttribute('aria-label', `${node.name} output`);
-    outputPort.tabIndex = -1;
+    const outputPorts = document.createElement('div');
+    outputPorts.className = 'flow-canvas__ports flow-canvas__ports--output';
+    for (const [index, port] of definition.outputs.entries()) {
+      outputPorts.appendChild(
+        this.createPortElement(node, port, index, definition.outputs.length, nodeHeight),
+      );
+    }
 
-    element.append(inputPort, body, outputPort);
+    if (definition.inputs.length > 0) {
+      element.appendChild(inputPorts);
+    }
+    element.appendChild(body);
+    if (definition.outputs.length > 0) {
+      element.appendChild(outputPorts);
+    }
     this.nodesLayer.append(element);
     this.renderEdges();
+  }
+
+  private createPortElement(
+    node: FlowNode,
+    port: ComponentPortDefinition,
+    index: number,
+    portCount: number,
+    nodeHeight: number,
+  ): HTMLElement {
+    const portElement = document.createElement('button');
+    portElement.type = 'button';
+    portElement.className = `flow-canvas__port flow-canvas__port--${port.direction}`;
+    portElement.dataset.port = port.direction;
+    portElement.dataset.portId = port.id;
+    portElement.setAttribute('aria-label', `${node.name} ${port.label} ${port.direction}`);
+    portElement.title = port.label;
+    portElement.tabIndex = -1;
+    portElement.style.top = `${getPortOffsetY(index, portCount, nodeHeight)}px`;
+    return portElement;
   }
 
   private updateNodePosition(node: FlowNode): void {
@@ -462,8 +554,8 @@ export class FlowCanvasEngine {
     this.edgesLayer.replaceChildren();
 
     for (const edge of this.graph.edges) {
-      const source = this.getPortCenter(edge.sourceNodeId, 'output');
-      const target = this.getPortCenter(edge.targetNodeId, 'input');
+      const source = this.getPortCenter(edge.sourceNodeId, 'output', edge.sourcePortId);
+      const target = this.getPortCenter(edge.targetNodeId, 'input', edge.targetPortId);
       if (!source || !target) {
         continue;
       }
@@ -480,15 +572,28 @@ export class FlowCanvasEngine {
     }
   }
 
-  private getPortCenter(nodeId: string, port: 'input' | 'output'): { x: number; y: number } | null {
+  private getPortCenter(
+    nodeId: string,
+    direction: 'input' | 'output',
+    portId: string,
+  ): { x: number; y: number } | null {
     const node = this.graph.nodes.find((entry) => entry.id === nodeId);
-    if (!node) {
+    const definition = node ? getComponentDefinition(node.typeId) : undefined;
+    if (!node || !definition) {
       return null;
     }
 
-    const y = node.position.y + NODE_HEIGHT / 2;
+    const ports = direction === 'input' ? definition.inputs : definition.outputs;
+    const portIndex = ports.findIndex((port) => port.id === portId);
+    if (portIndex < 0) {
+      return null;
+    }
+
+    const portCount = Math.max(definition.inputs.length, definition.outputs.length, 1);
+    const nodeHeight = getNodeHeight(portCount);
+    const y = node.position.y + getPortOffsetY(portIndex, ports.length, nodeHeight);
     const x =
-      port === 'input'
+      direction === 'input'
         ? node.position.x
         : node.position.x + NODE_WIDTH;
 
@@ -509,7 +614,11 @@ export class FlowCanvasEngine {
       return;
     }
 
-    const source = this.getPortCenter(this.connectionDraft.nodeId, 'output');
+    const source = this.getPortCenter(
+      this.connectionDraft.nodeId,
+      'output',
+      this.connectionDraft.portId,
+    );
     if (!source) {
       return;
     }
@@ -580,10 +689,13 @@ export class FlowCanvasEngine {
     let maxY = Number.NEGATIVE_INFINITY;
 
     for (const node of this.graph.nodes) {
+      const definition = getComponentDefinition(node.typeId);
+      const portCount = Math.max(definition?.inputs.length ?? 1, definition?.outputs.length ?? 1, 1);
+      const nodeHeight = getNodeHeight(portCount);
       minX = Math.min(minX, node.position.x);
       minY = Math.min(minY, node.position.y);
       maxX = Math.max(maxX, node.position.x + NODE_WIDTH);
-      maxY = Math.max(maxY, node.position.y + NODE_HEIGHT);
+      maxY = Math.max(maxY, node.position.y + nodeHeight);
     }
 
     return {
@@ -600,6 +712,11 @@ export class FlowCanvasEngine {
     this.root.classList.toggle('flow-canvas--has-nodes', hasNodes);
   }
 
+  private getNodeDefinition(nodeId: string) {
+    const node = this.graph.nodes.find((entry) => entry.id === nodeId);
+    return node ? getComponentDefinition(node.typeId) : undefined;
+  }
+
   private notifyGraphChange(): void {
     this.options.onGraphChange?.(this.getGraph());
   }
@@ -611,23 +728,40 @@ export function serializeComponentTemplate(template: FlowNodeTemplate): string {
 
 export function parseComponentPayload(payload: string): FlowNodeTemplate | null {
   try {
-    const parsed = JSON.parse(payload) as Partial<FlowNodeTemplate>;
-    if (
-      typeof parsed.typeId === 'string' &&
-      typeof parsed.name === 'string' &&
-      typeof parsed.categoryId === 'string'
-    ) {
-      return {
-        typeId: parsed.typeId,
-        name: parsed.name,
-        categoryId: parsed.categoryId,
-      };
+    const parsed = JSON.parse(payload) as Partial<FlowNodeTemplate> & {
+      name?: string;
+      categoryId?: string;
+    };
+    if (typeof parsed.typeId === 'string' && getComponentDefinition(parsed.typeId)) {
+      return { typeId: parsed.typeId };
     }
   } catch {
     return null;
   }
 
   return null;
+}
+
+const NODE_MIN_HEIGHT = 72;
+const PORT_SPACING = 28;
+
+function getNodeHeight(portCount: number): number {
+  if (portCount <= 1) {
+    return NODE_MIN_HEIGHT;
+  }
+
+  return Math.max(NODE_MIN_HEIGHT, (portCount - 1) * PORT_SPACING + 48);
+}
+
+function getPortOffsetY(index: number, portCount: number, nodeHeight: number): number {
+  if (portCount <= 1) {
+    return nodeHeight / 2;
+  }
+
+  const spacing = Math.min(PORT_SPACING, nodeHeight / (portCount + 1));
+  const totalSpan = spacing * (portCount - 1);
+  const startY = (nodeHeight - totalSpan) / 2;
+  return startY + index * spacing;
 }
 
 function createEdgePath(
@@ -641,8 +775,4 @@ function createEdgePath(
   const c2x = target.x - controlOffset;
   const c2y = target.y;
   return `M ${source.x} ${source.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${target.x} ${target.y}`;
-}
-
-function formatCategoryLabel(categoryId: string): string {
-  return categoryId.charAt(0).toUpperCase() + categoryId.slice(1);
 }
