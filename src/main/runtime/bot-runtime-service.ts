@@ -1,28 +1,53 @@
 import type { BotRuntimeStatus } from '../../shared/domain/bot-project';
 import { MAX_APP_MANAGED_RUNNING_BOTS } from '../../shared/domain/bot-project';
+import type { RuntimeLogEntry } from '../../shared/domain/runtime-log';
 import type { BotProject } from '../../shared/ipc/project-contracts';
 import {
   BotRuntimeError,
   type BotRuntimeState,
 } from '../../shared/ipc/runtime-contracts';
+import { loadFlowGraph } from '../storage/flow-storage-service';
 import { findProjectById } from '../storage/project-storage-service';
+import { loadSlackConfigForProject } from '../storage/slack-config-service';
+import { RuntimeLogger } from './runtime-logger';
+import { SlackSocketRuntime } from './slack-socket-runtime';
 
 let activeProject: BotProject | null = null;
 let status: BotRuntimeStatus = 'inactive';
+let lastError: string | null = null;
+let activeSession: SlackSocketRuntime | null = null;
+let activeLogger: RuntimeLogger | null = null;
 
 function createRuntimeState(): BotRuntimeState {
   return {
     activeProject,
     status,
+    lastError,
   };
 }
 
-function stopExecution(): void {
-  status = 'inactive';
+function setErrorState(message: string): void {
+  lastError = message;
+  status = 'error';
+}
+
+async function stopExecution(): Promise<void> {
+  if (activeSession) {
+    await activeSession.stop();
+    activeSession = null;
+  }
+
+  if (status !== 'error') {
+    status = 'inactive';
+  }
 }
 
 export function getRuntimeState(): BotRuntimeState {
   return createRuntimeState();
+}
+
+export function getRuntimeLogs(): RuntimeLogEntry[] {
+  return activeLogger?.getEntries() ?? [];
 }
 
 export async function openBot(projectId: string): Promise<BotRuntimeState> {
@@ -37,7 +62,7 @@ export async function openBot(projectId: string): Promise<BotRuntimeState> {
   }
 
   if (activeProject !== null) {
-    closeBot();
+    await closeBot();
   }
 
   if (MAX_APP_MANAGED_RUNNING_BOTS !== 1) {
@@ -46,11 +71,13 @@ export async function openBot(projectId: string): Promise<BotRuntimeState> {
 
   activeProject = project;
   status = 'inactive';
+  lastError = null;
+  activeLogger = new RuntimeLogger(project.path);
 
   return createRuntimeState();
 }
 
-export function startBot(): BotRuntimeState {
+export async function startBot(): Promise<BotRuntimeState> {
   if (!activeProject) {
     throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
   }
@@ -59,12 +86,60 @@ export function startBot(): BotRuntimeState {
     throw new BotRuntimeError('ALREADY_RUNNING', 'Bot is already running.');
   }
 
+  const slackConfig = await loadSlackConfigForProject(activeProject.id);
+
+  if (!slackConfig) {
+    throw new BotRuntimeError(
+      'SLACK_NOT_CONFIGURED',
+      'Connect this bot to Slack before starting it.',
+    );
+  }
+
+  let graph;
+
+  try {
+    graph = await loadFlowGraph(activeProject.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load the saved flow.';
+    throw new BotRuntimeError('START_FAILED', message);
+  }
+
+  if (!activeLogger) {
+    activeLogger = new RuntimeLogger(activeProject.path);
+  } else {
+    activeLogger.clear();
+  }
+
+  lastError = null;
+  activeLogger.info('runtime', `Starting bot "${activeProject.name}".`);
+
+  const session = new SlackSocketRuntime(
+    slackConfig,
+    graph,
+    activeLogger,
+    (message) => {
+      setErrorState(message);
+    },
+  );
+
+  try {
+    await session.start();
+  } catch (error) {
+    activeSession = null;
+    const message =
+      error instanceof Error ? error.message : 'Failed to start the bot runtime.';
+    setErrorState(message);
+    activeLogger.error('runtime', message);
+    throw new BotRuntimeError('START_FAILED', message);
+  }
+
+  activeSession = session;
   status = 'running';
 
   return createRuntimeState();
 }
 
-export function stopBot(): BotRuntimeState {
+export async function stopBot(): Promise<BotRuntimeState> {
   if (!activeProject) {
     throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
   }
@@ -73,32 +148,37 @@ export function stopBot(): BotRuntimeState {
     throw new BotRuntimeError('NOT_RUNNING', 'Bot is not running.');
   }
 
-  stopExecution();
+  await stopExecution();
+  lastError = null;
+  status = 'inactive';
+  activeLogger?.info('runtime', 'Bot stopped.');
 
   return createRuntimeState();
 }
 
-export function restartBot(): BotRuntimeState {
+export async function restartBot(): Promise<BotRuntimeState> {
   if (!activeProject) {
     throw new BotRuntimeError('NOT_OPEN', 'No bot is open.');
   }
 
   if (status === 'running' || status === 'paused' || status === 'error') {
-    stopExecution();
+    await stopExecution();
+    lastError = null;
+    status = 'inactive';
   }
 
-  status = 'running';
-
-  return createRuntimeState();
+  return startBot();
 }
 
-export function closeBot(): BotRuntimeState {
+export async function closeBot(): Promise<BotRuntimeState> {
   if (status === 'running' || status === 'paused' || status === 'error') {
-    stopExecution();
+    await stopExecution();
   }
 
   activeProject = null;
   status = 'inactive';
+  lastError = null;
+  activeLogger = null;
 
   return createRuntimeState();
 }

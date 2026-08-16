@@ -20,6 +20,7 @@ import type {
 } from './project-contracts';
 import type {
   CloseBotResponse,
+  GetRuntimeLogsResponse,
   GetRuntimeStateResponse,
   OpenBotRequest,
   OpenBotResponse,
@@ -50,6 +51,7 @@ export interface ElectronAPI {
   startBot: () => Promise<StartBotResponse>;
   stopBot: () => Promise<StopBotResponse>;
   restartBot: () => Promise<RestartBotResponse>;
+  getRuntimeLogs: () => Promise<GetRuntimeLogsResponse>;
   getFlowGraph: (request: GetFlowGraphRequest) => Promise<GetFlowGraphResponse>;
   saveFlowGraph: (request: SaveFlowGraphRequest) => Promise<SaveFlowGraphResponse>;
   getSlackConnection: (request: GetSlackConnectionRequest) => Promise<GetSlackConnectionResponse>;

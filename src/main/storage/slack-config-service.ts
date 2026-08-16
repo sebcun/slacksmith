@@ -157,6 +157,11 @@ async function verifyBotToken(botToken: string): Promise<{
   };
 }
 
+export async function loadSlackConfigForProject(projectId: string): Promise<SlackConfigFile | null> {
+  const projectPath = await resolveProjectPath(projectId);
+  return readSlackConfigFile(projectPath);
+}
+
 export async function getSlackConnection(projectId: string): Promise<SlackConnectionSummary> {
   const projectPath = await resolveProjectPath(projectId);
   const config = await readSlackConfigFile(projectPath);

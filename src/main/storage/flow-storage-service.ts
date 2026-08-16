@@ -57,7 +57,7 @@ async function touchProjectUpdatedAt(projectPath: string): Promise<void> {
       'utf8',
     );
   } catch {
-    // d
+    // 
   }
 }
 

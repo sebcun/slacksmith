@@ -5,6 +5,7 @@ import type { OpenBotRequest } from '../../shared/ipc/runtime-contracts';
 import { BotRuntimeError } from '../../shared/ipc/runtime-contracts';
 import {
   closeBot,
+  getRuntimeLogs,
   getRuntimeState,
   openBot,
   restartBot,
@@ -18,15 +19,19 @@ function rethrowRuntimeError(error: unknown): never {
   }
 
   if (error instanceof Error) {
-    throw new BotRuntimeError('PROJECT_NOT_FOUND', error.message);
+    throw new BotRuntimeError('START_FAILED', error.message);
   }
 
-  throw new BotRuntimeError('PROJECT_NOT_FOUND', 'An unexpected runtime error occurred.');
+  throw new BotRuntimeError('START_FAILED', 'An unexpected runtime error occurred.');
 }
 
 export function registerRuntimeIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.RUNTIME_GET_STATE, async () => {
     return getRuntimeState();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RUNTIME_GET_LOGS, async () => {
+    return getRuntimeLogs();
   });
 
   ipcMain.handle(IPC_CHANNELS.RUNTIME_OPEN_BOT, async (_event, request: OpenBotRequest) => {
@@ -43,7 +48,7 @@ export function registerRuntimeIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.RUNTIME_START_BOT, async () => {
     try {
-      return startBot();
+      return await startBot();
     } catch (error) {
       rethrowRuntimeError(error);
     }
@@ -51,7 +56,7 @@ export function registerRuntimeIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.RUNTIME_STOP_BOT, async () => {
     try {
-      return stopBot();
+      return await stopBot();
     } catch (error) {
       rethrowRuntimeError(error);
     }
@@ -59,7 +64,7 @@ export function registerRuntimeIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.RUNTIME_RESTART_BOT, async () => {
     try {
-      return restartBot();
+      return await restartBot();
     } catch (error) {
       rethrowRuntimeError(error);
     }

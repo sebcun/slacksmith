@@ -66,7 +66,7 @@ export function registerProjectIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.PROJECTS_DELETE, async (_event, request: DeleteProjectRequest) => {
     try {
       if (isBotActive(request.id)) {
-        closeBot();
+        await closeBot();
       }
 
       await deleteProject(request.id);

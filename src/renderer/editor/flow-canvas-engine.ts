@@ -9,6 +9,8 @@ import {
 import {
   getCategoryLabel,
   getComponentDefinition,
+  getNodeCanvasSubtitle,
+  hasLabeledBranchOutputs,
   type ComponentPortDefinition,
 } from '../../shared/domain/component-registry.js';
 
@@ -170,6 +172,7 @@ export class FlowCanvasEngine {
     }
 
     node.config[fieldId] = value;
+    this.updateNodeDisplayInPlace(nodeId);
     this.notifyGraphChange();
   }
 
@@ -530,11 +533,20 @@ export class FlowCanvasEngine {
 
     body.append(category, title);
 
+    const subtitle = getNodeCanvasSubtitle(node.typeId, node.config);
+    if (subtitle) {
+      const subtitleElement = document.createElement('span');
+      subtitleElement.className = 'flow-canvas__node-subtitle';
+      subtitleElement.textContent = subtitle;
+      body.appendChild(subtitleElement);
+    }
+
     const outputPorts = document.createElement('div');
     outputPorts.className = 'flow-canvas__ports flow-canvas__ports--output';
+    const showPortLabels = hasLabeledBranchOutputs(node.typeId);
     for (const [index, port] of definition.outputs.entries()) {
       outputPorts.appendChild(
-        this.createPortElement(node, port, index, definition.outputs.length, nodeHeight),
+        this.createPortElement(node, port, index, definition.outputs.length, nodeHeight, showPortLabels),
       );
     }
 
@@ -555,7 +567,19 @@ export class FlowCanvasEngine {
     index: number,
     portCount: number,
     nodeHeight: number,
+    showLabel = false,
   ): HTMLElement {
+    const portOffsetY = getPortOffsetY(index, portCount, nodeHeight);
+    const container =
+      showLabel && port.direction === 'output'
+        ? document.createElement('div')
+        : null;
+
+    if (container) {
+      container.className = 'flow-canvas__port-row';
+      container.style.top = `${portOffsetY}px`;
+    }
+
     const portElement = document.createElement('button');
     portElement.type = 'button';
     portElement.className = `flow-canvas__port flow-canvas__port--${port.direction}`;
@@ -564,8 +588,49 @@ export class FlowCanvasEngine {
     portElement.setAttribute('aria-label', `${node.name} ${port.label} ${port.direction}`);
     portElement.title = port.label;
     portElement.tabIndex = -1;
-    portElement.style.top = `${getPortOffsetY(index, portCount, nodeHeight)}px`;
+
+    if (!container) {
+      portElement.style.top = `${portOffsetY}px`;
+    }
+
+    if (container) {
+      const label = document.createElement('span');
+      label.className = 'flow-canvas__port-label';
+      label.textContent = port.label;
+      container.append(label, portElement);
+      return container;
+    }
+
     return portElement;
+  }
+
+  private updateNodeDisplayInPlace(nodeId: string): void {
+    const node = this.graph.nodes.find((entry) => entry.id === nodeId);
+    if (!node) {
+      return;
+    }
+
+    const element = this.nodesLayer.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!element) {
+      return;
+    }
+
+    const subtitle = getNodeCanvasSubtitle(node.typeId, node.config);
+    const existingSubtitle = element.querySelector('.flow-canvas__node-subtitle');
+
+    if (subtitle) {
+      if (existingSubtitle instanceof HTMLElement) {
+        existingSubtitle.textContent = subtitle;
+      } else {
+        const subtitleElement = document.createElement('span');
+        subtitleElement.className = 'flow-canvas__node-subtitle';
+        subtitleElement.textContent = subtitle;
+        element.querySelector('.flow-canvas__node-body')?.appendChild(subtitleElement);
+      }
+      return;
+    }
+
+    existingSubtitle?.remove();
   }
 
   private updateNodePosition(node: FlowNode): void {

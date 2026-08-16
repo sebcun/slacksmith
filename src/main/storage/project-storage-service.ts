@@ -109,7 +109,7 @@ async function readRegistry(): Promise<ProjectRegistryFile> {
       };
     }
   } catch {
-    // Fall back to an empty registry if the file is invalid.
+    // 
   }
 
   return { externalPaths: [] };

@@ -1,9 +1,11 @@
 import type { BotRuntimeStatus } from '../domain/bot-project';
+import type { RuntimeLogEntry } from '../domain/runtime-log';
 import type { BotProject } from './project-contracts';
 
 export interface BotRuntimeState {
   activeProject: BotProject | null;
   status: BotRuntimeStatus;
+  lastError: string | null;
 }
 
 export interface OpenBotRequest {
@@ -22,12 +24,16 @@ export type StopBotResponse = BotRuntimeState;
 
 export type RestartBotResponse = BotRuntimeState;
 
+export type GetRuntimeLogsResponse = RuntimeLogEntry[];
+
 export type RuntimeErrorCode =
   | 'PROJECT_NOT_FOUND'
   | 'ALREADY_OPEN'
   | 'NOT_OPEN'
   | 'ALREADY_RUNNING'
-  | 'NOT_RUNNING';
+  | 'NOT_RUNNING'
+  | 'SLACK_NOT_CONFIGURED'
+  | 'START_FAILED';
 
 export class BotRuntimeError extends Error {
   readonly code: RuntimeErrorCode;

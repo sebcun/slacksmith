@@ -90,14 +90,7 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: 'When a message is posted',
     inputs: [],
     outputs: [TRIGGER_OUTPUT],
-    fields: [
-      {
-        id: 'channelFilter',
-        label: 'Channel filter',
-        type: 'channel',
-        description: 'Only run when a message is posted in this channel. Leave empty for any channel.',
-      },
-    ],
+    fields: [],
     execution: {
       handlerId: 'trigger.message-received',
       isTrigger: true,
@@ -126,54 +119,12 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
-    id: 'app-mention',
-    categoryId: 'triggers',
-    name: 'App mention',
-    description: 'When the bot is @mentioned',
-    inputs: [],
-    outputs: [TRIGGER_OUTPUT],
-    fields: [
-      {
-        id: 'channelFilter',
-        label: 'Channel filter',
-        type: 'channel',
-        description: 'Only run when the bot is mentioned in this channel. Leave empty for any channel.',
-      },
-    ],
-    execution: {
-      handlerId: 'trigger.app-mention',
-      isTrigger: true,
-    },
-  },
-  {
     id: 'if-else',
     categoryId: 'conditions',
     name: 'If / else',
-    description: 'Branch based on a condition',
+    description: 'Branch based on a value comparison',
     inputs: [FLOW_INPUT],
     outputs: BRANCH_OUTPUTS,
-    fields: [
-      {
-        id: 'expression',
-        label: 'Condition',
-        type: 'text',
-        description: appendVariableHint('Expression to evaluate. True routes to the True output.'),
-        required: true,
-        defaultValue: '',
-        supportsVariables: true,
-      },
-    ],
-    execution: {
-      handlerId: 'condition.if-else',
-    },
-  },
-  {
-    id: 'compare-value',
-    categoryId: 'conditions',
-    name: 'Compare value',
-    description: 'Check a value against a rule',
-    inputs: [FLOW_INPUT],
-    outputs: MATCH_OUTPUTS,
     fields: [
       {
         id: 'leftValue',
@@ -192,10 +143,15 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         defaultValue: 'equals',
         options: [
           { value: 'equals', label: 'Equals' },
+          { value: 'not-equals', label: 'Does not equal' },
           { value: 'contains', label: 'Contains' },
+          { value: 'not-contains', label: 'Does not contain' },
           { value: 'starts-with', label: 'Starts with' },
+          { value: 'ends-with', label: 'Ends with' },
           { value: 'greater-than', label: 'Greater than' },
+          { value: 'greater-than-or-equal', label: 'Greater than or equal to' },
           { value: 'less-than', label: 'Less than' },
+          { value: 'less-than-or-equal', label: 'Less than or equal to' },
         ],
       },
       {
@@ -209,7 +165,7 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       },
     ],
     execution: {
-      handlerId: 'condition.compare-value',
+      handlerId: 'condition.if-else',
     },
   },
   {
@@ -243,8 +199,9 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         id: 'channel',
         label: 'Channel',
         type: 'channel',
-        description: appendVariableHint(),
-        required: true,
+        description: appendVariableHint(
+          'Leave blank to send to the channel where the trigger occurred, or #general if unavailable.',
+        ),
         supportsVariables: true,
       },
       {
@@ -482,4 +439,65 @@ export function formatConfigFieldType(type: ConfigFieldType): string {
     default:
       return type;
   }
+}
+
+function getSelectOptionLabel(
+  field: ConfigFieldDefinition,
+  value: unknown,
+): string | undefined {
+  if (field.type !== 'select' || !field.options) {
+    return undefined;
+  }
+
+  const normalized = String(value ?? '');
+  return field.options.find((option) => option.value === normalized)?.label;
+}
+
+function truncateDisplayValue(value: string, maxLength = 18): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxLength - 1)}…`;
+}
+
+/** Short summary shown on the canvas node body for branching components. */
+export function getNodeCanvasSubtitle(
+  typeId: string,
+  config: Record<string, unknown>,
+): string | null {
+  const definition = getComponentDefinition(typeId);
+  if (!definition) {
+    return null;
+  }
+
+  switch (typeId) {
+    case 'if-else': {
+      const operatorField = definition.fields.find((field) => field.id === 'operator');
+      const operatorLabel = operatorField
+        ? getSelectOptionLabel(operatorField, config.operator) ?? 'Equals'
+        : 'Equals';
+      const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
+      return rightValue.length > 0 ? `${operatorLabel} "${rightValue}"` : operatorLabel;
+    }
+
+    case 'channel-match': {
+      const channel = truncateDisplayValue(String(config.channel ?? ''));
+      return channel.length > 0 ? channel : null;
+    }
+
+    default:
+      return null;
+  }
+}
+
+/** Whether a component exposes labeled branching outputs on the canvas. */
+export function hasLabeledBranchOutputs(typeId: string): boolean {
+  const definition = getComponentDefinition(typeId);
+  if (!definition) {
+    return false;
+  }
+
+  return definition.outputs.length > 1;
 }

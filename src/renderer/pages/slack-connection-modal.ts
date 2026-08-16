@@ -29,15 +29,18 @@ function createInstructions(): HTMLElement {
   const intro = document.createElement('p');
   intro.className = 'slack-connection-modal__intro';
   intro.textContent =
-    'Connect this bot to a Slack app to start running it.';
+    'Connect this bot to a Slack app using Socket Mode. Credentials are stored locally inside this project folder and are never sent anywhere except Slack when verifying the connection.';
   instructions.appendChild(intro);
 
   const steps = document.createElement('ol');
   steps.className = 'slack-connection-modal__steps';
 
   const stepItems = [
-    '1.aaa',
-    '2.bbb',
+    'Create or open a Slack app at api.slack.com/apps.',
+    'Enable Socket Mode and create an app-level token with the connections:write scope.',
+    'Install the app to your workspace and copy the Bot User OAuth Token.',
+    'Copy the Signing Secret from Basic Information.',
+    'Paste all three values below and click Test & save.',
   ];
 
   for (const step of stepItems) {

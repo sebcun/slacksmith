@@ -49,5 +49,5 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  closeBot();
+  void closeBot();
 });

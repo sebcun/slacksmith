@@ -106,17 +106,84 @@ export function isValidFlowGraph(value: unknown): value is FlowGraph {
 }
 
 export function parseFlowGraph(value: unknown): FlowGraph | null {
-  if (!isValidFlowGraph(value)) {
+  const migrated = migrateRawFlowGraph(value);
+
+  if (!isValidFlowGraph(migrated)) {
     return null;
   }
 
   return {
-    nodes: value.nodes.map((node) => ({
+    nodes: migrated.nodes.map((node) => ({
       ...node,
       position: { ...node.position },
       config: { ...node.config },
     })),
-    edges: value.edges.map((edge) => ({ ...edge })),
+    edges: migrated.edges.map((edge) => ({ ...edge })),
+  };
+}
+
+function migrateRawFlowGraph(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) {
+    return value;
+  }
+
+  const removedNodeIds = new Set<string>();
+
+  const nodes = value.nodes
+    .map((node) => {
+      if (!isRecord(node)) {
+        return node;
+      }
+
+      if (node.typeId === 'app-mention') {
+        if (typeof node.id === 'string') {
+          removedNodeIds.add(node.id);
+        }
+        return null;
+      }
+
+      if (node.typeId !== 'compare-value') {
+        return node;
+      }
+
+      return {
+        ...node,
+        typeId: 'if-else',
+        name: getComponentDefinition('if-else')?.name ?? node.name,
+        categoryId: 'conditions',
+      };
+    })
+    .filter((node) => node !== null);
+
+  const edges = value.edges
+    .map((edge) => {
+      if (!isRecord(edge)) {
+        return edge;
+      }
+
+      if (
+        (typeof edge.sourceNodeId === 'string' && removedNodeIds.has(edge.sourceNodeId)) ||
+        (typeof edge.targetNodeId === 'string' && removedNodeIds.has(edge.targetNodeId))
+      ) {
+        return null;
+      }
+
+      if (edge.sourcePortId === 'match') {
+        return { ...edge, sourcePortId: 'true' };
+      }
+
+      if (edge.sourcePortId === 'no-match') {
+        return { ...edge, sourcePortId: 'false' };
+      }
+
+      return edge;
+    })
+    .filter((edge) => edge !== null);
+
+  return {
+    ...value,
+    nodes,
+    edges,
   };
 }
 
