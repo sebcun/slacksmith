@@ -112,6 +112,34 @@ async function resolveSendMessageChannel(
   return defaultChannel;
 }
 
+function resolveMessageTimestamp(configuredTimestamp: string, context: FlowExecutionContext): string {
+  if (configuredTimestamp.trim().length > 0) {
+    return configuredTimestamp;
+  }
+
+  if (context.trigger.messageTs) {
+    return context.trigger.messageTs;
+  }
+
+  throw new Error('No message timestamp available.');
+}
+
+function resolveTargetUser(configuredUser: string, context: FlowExecutionContext): string {
+  if (configuredUser.trim().length > 0) {
+    return configuredUser;
+  }
+
+  if (context.trigger.userId.trim().length > 0) {
+    return context.trigger.userId;
+  }
+
+  throw new Error('No user ID available.');
+}
+
+function normalizeEmojiName(emoji: string): string {
+  return emoji.replace(/^:+|:+$/g, '');
+}
+
 function findNextNode(
   graph: FlowGraph,
   nodeId: string,
@@ -234,10 +262,127 @@ async function executeNode(
         await context.slackClient.reactions.add({
           channel,
           timestamp,
-          name: emoji.replace(/^:+|:+$/g, ''),
+          name: normalizeEmojiName(emoji),
         });
 
         context.logger.info('execution', `Added reaction :${emoji}:`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.edit-message': {
+        const timestamp = resolveMessageTimestamp(fieldValue('timestamp'), context);
+        const channel = await resolveSendMessageChannel(fieldValue('channel'), context);
+        const message = fieldValue('message');
+
+        await context.slackClient.chat.update({
+          channel,
+          ts: timestamp,
+          text: message,
+        });
+
+        context.logger.info('execution', `Edited message in ${channel}`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.delete-message': {
+        const timestamp = resolveMessageTimestamp(fieldValue('timestamp'), context);
+        const channel = await resolveSendMessageChannel(fieldValue('channel'), context);
+
+        await context.slackClient.chat.delete({
+          channel,
+          ts: timestamp,
+        });
+
+        context.logger.info('execution', `Deleted message in ${channel}`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.send-ephemeral-message': {
+        const user = resolveTargetUser(fieldValue('user'), context);
+        const channel = await resolveSendMessageChannel(fieldValue('channel'), context);
+        const message = fieldValue('message');
+
+        await context.slackClient.chat.postEphemeral({
+          channel,
+          user,
+          text: message,
+        });
+
+        context.logger.info('execution', `Sent ephemeral message to ${user} in ${channel}`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.send-dm': {
+        const user = fieldValue('user');
+        const message = fieldValue('message');
+
+        if (!user.trim()) {
+          throw new Error('User ID is required to send a DM.');
+        }
+
+        const openResult = await context.slackClient.conversations.open({ users: user });
+        const dmChannel = openResult.channel?.id;
+
+        if (!dmChannel) {
+          throw new Error('Could not open a DM channel with the specified user.');
+        }
+
+        await context.slackClient.chat.postMessage({
+          channel: dmChannel,
+          text: message,
+        });
+
+        context.logger.info('execution', `Sent DM to ${user}`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.remove-reaction': {
+        const emoji = fieldValue('emoji');
+        const channel = context.trigger.channelId;
+        const timestamp = context.trigger.messageTs;
+
+        if (!timestamp) {
+          throw new Error('No message timestamp available to remove a reaction.');
+        }
+
+        await context.slackClient.reactions.remove({
+          channel,
+          timestamp,
+          name: normalizeEmojiName(emoji),
+        });
+
+        context.logger.info('execution', `Removed reaction :${emoji}:`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+        break;
+      }
+
+      case 'action.set-channel-topic': {
+        const channel = await resolveSendMessageChannel(fieldValue('channel'), context);
+        const topic = fieldValue('topic');
+
+        await context.slackClient.conversations.setTopic({
+          channel,
+          topic,
+        });
+
+        context.logger.info('execution', `Set topic for ${channel}`, {
           nodeId: node.id,
           nodeName: node.name,
         });
