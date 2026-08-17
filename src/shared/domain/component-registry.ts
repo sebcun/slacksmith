@@ -453,6 +453,588 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
+    id: 'math',
+    categoryId: 'data',
+    name: 'Math',
+    description: 'Perform arithmetic on two numbers and store the result',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'leftValue',
+        label: 'First value',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      {
+        id: 'operator',
+        label: 'Operator',
+        type: 'select',
+        required: true,
+        defaultValue: 'add',
+        options: [
+          { value: 'add', label: 'Add (+)' },
+          { value: 'subtract', label: 'Subtract (−)' },
+          { value: 'multiply', label: 'Multiply (×)' },
+          { value: 'divide', label: 'Divide (÷)' },
+          { value: 'modulo', label: 'Modulo (%)' },
+          { value: 'power', label: 'Exponent (^)' },
+        ],
+      },
+      {
+        id: 'rightValue',
+        label: 'Second value',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.math',
+    },
+  },
+  {
+    id: 'random-number',
+    categoryId: 'data',
+    name: 'Random number',
+    description: 'Generate random numbers within a range',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'minimum',
+        label: 'Minimum',
+        type: 'text',
+        description: appendVariableHint('Lowest possible value (inclusive).'),
+        required: true,
+        defaultValue: '1',
+        supportsVariables: true,
+      },
+      {
+        id: 'maximum',
+        label: 'Maximum',
+        type: 'text',
+        description: appendVariableHint('Highest possible value (inclusive).'),
+        required: true,
+        defaultValue: '100',
+        supportsVariables: true,
+      },
+      {
+        id: 'count',
+        label: 'Amount',
+        type: 'text',
+        description: appendVariableHint(
+          'How many numbers to generate. Returns a single number when 1, or an array when greater than 1.',
+        ),
+        required: true,
+        defaultValue: '1',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.random-number',
+    },
+  },
+  {
+    id: 'random-string',
+    categoryId: 'data',
+    name: 'Random string',
+    description: 'Generate random strings from selected character sets',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'length',
+        label: 'Length',
+        type: 'text',
+        description: appendVariableHint('Number of characters in each string.'),
+        required: true,
+        defaultValue: '8',
+        supportsVariables: true,
+      },
+      {
+        id: 'count',
+        label: 'Amount',
+        type: 'text',
+        description: appendVariableHint(
+          'How many strings to generate. Returns a single string when 1, or an array when greater than 1.',
+        ),
+        required: true,
+        defaultValue: '1',
+        supportsVariables: true,
+      },
+      {
+        id: 'includeNumbers',
+        label: 'Include numbers',
+        type: 'boolean',
+        defaultValue: true,
+      },
+      {
+        id: 'includeUppercase',
+        label: 'Include uppercase letters',
+        type: 'boolean',
+        defaultValue: true,
+      },
+      {
+        id: 'includeLowercase',
+        label: 'Include lowercase letters',
+        type: 'boolean',
+        defaultValue: true,
+      },
+      {
+        id: 'includeSymbols',
+        label: 'Include symbols',
+        type: 'boolean',
+        defaultValue: false,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.random-string',
+    },
+  },
+  {
+    id: 'date-time',
+    categoryId: 'data',
+    name: 'Date and time',
+    description: 'Get the current date and time in a custom format',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'format',
+        label: 'Format',
+        type: 'text',
+        description:
+          'Format tokens: YYYY (year), MM (month), DD (day), HH (hour), mm (minute), ss (second), dddd (weekday), ww (week), unix (seconds), unixMs (milliseconds). Combine tokens freely, e.g. YYYY-MM-DD HH:mm:ss.',
+        required: true,
+        defaultValue: 'YYYY-MM-DD HH:mm:ss',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.date-time',
+    },
+  },
+  {
+    id: 'convert',
+    categoryId: 'data',
+    name: 'Convert',
+    description: 'Convert a value between formats or units',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'value',
+        label: 'Value',
+        type: 'text',
+        description: appendVariableHint('The value to convert.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'conversion',
+        label: 'Conversion',
+        type: 'select',
+        required: true,
+        defaultValue: 'number-to-string',
+        options: [
+          { value: 'number-to-string', label: 'Number to string' },
+          { value: 'string-to-number', label: 'String to number' },
+          { value: 'celsius-to-fahrenheit', label: 'Celsius to Fahrenheit' },
+          { value: 'fahrenheit-to-celsius', label: 'Fahrenheit to Celsius' },
+          { value: 'kilometres-to-miles', label: 'Kilometres to miles' },
+          { value: 'miles-to-kilometres', label: 'Miles to kilometres' },
+          { value: 'metres-to-feet', label: 'Metres to feet' },
+          { value: 'feet-to-metres', label: 'Feet to metres' },
+          { value: 'seconds-to-milliseconds', label: 'Seconds to milliseconds' },
+          { value: 'milliseconds-to-seconds', label: 'Milliseconds to seconds' },
+          { value: 'kilograms-to-pounds', label: 'Kilograms to pounds' },
+          { value: 'pounds-to-kilograms', label: 'Pounds to kilograms' },
+        ],
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.convert',
+    },
+  },
+  {
+    id: 'round-number',
+    categoryId: 'data',
+    name: 'Round number',
+    description: 'Round a number using a chosen method',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'value',
+        label: 'Value',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      {
+        id: 'method',
+        label: 'Method',
+        type: 'select',
+        required: true,
+        defaultValue: 'round',
+        options: [
+          { value: 'round', label: 'Round' },
+          { value: 'floor', label: 'Floor' },
+          { value: 'ceiling', label: 'Ceiling' },
+          { value: 'truncate', label: 'Truncate' },
+        ],
+      },
+      {
+        id: 'decimalPlaces',
+        label: 'Decimal places',
+        type: 'text',
+        description: appendVariableHint('Number of decimal places to keep.'),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.round-number',
+    },
+  },
+  {
+    id: 'string',
+    categoryId: 'data',
+    name: 'String',
+    description: 'Create or modify text with variable references',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'value',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint('Text to store, including ${variableName} references.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string',
+    },
+  },
+  {
+    id: 'string-length',
+    categoryId: 'data',
+    name: 'String length',
+    description: 'Count the number of characters in a string',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-length',
+    },
+  },
+  {
+    id: 'string-replace',
+    categoryId: 'data',
+    name: 'String replace',
+    description: 'Find and replace text in a string',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'find',
+        label: 'Find',
+        type: 'text',
+        description: appendVariableHint('Text to search for.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'replace',
+        label: 'Replace with',
+        type: 'text',
+        description: appendVariableHint('Text to insert instead.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'replaceMode',
+        label: 'Replace',
+        type: 'select',
+        required: true,
+        defaultValue: 'all',
+        options: [
+          { value: 'first', label: 'First match only' },
+          { value: 'all', label: 'All matches' },
+        ],
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-replace',
+    },
+  },
+  {
+    id: 'string-split',
+    categoryId: 'data',
+    name: 'String split',
+    description: 'Split a string into an array using a separator',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint('Text to split, e.g. apple,banana,orange.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'separator',
+        label: 'Separator',
+        type: 'text',
+        description: appendVariableHint('Character or text to split on, e.g. ,'),
+        required: true,
+        defaultValue: ',',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-split',
+    },
+  },
+  {
+    id: 'string-join',
+    categoryId: 'data',
+    name: 'String join',
+    description: 'Combine array values into a single string',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'values',
+        label: 'Values',
+        type: 'text',
+        description: appendVariableHint(
+          'An array variable like ${items}, or comma-separated values like apple, banana, orange.',
+        ),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'separator',
+        label: 'Separator',
+        type: 'text',
+        description: appendVariableHint('Text placed between each value.'),
+        required: true,
+        defaultValue: ', ',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-join',
+    },
+  },
+  {
+    id: 'string-contains',
+    categoryId: 'data',
+    name: 'String contains',
+    description: 'Check whether a string contains specific text',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'search',
+        label: 'Contains',
+        type: 'text',
+        description: appendVariableHint('Text to look for.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-contains',
+    },
+  },
+  {
+    id: 'string-case',
+    categoryId: 'data',
+    name: 'String case',
+    description: 'Change the casing of text',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'caseType',
+        label: 'Case',
+        type: 'select',
+        required: true,
+        defaultValue: 'uppercase',
+        options: [
+          { value: 'uppercase', label: 'Uppercase' },
+          { value: 'lowercase', label: 'Lowercase' },
+          { value: 'title', label: 'Title case' },
+          { value: 'sentence', label: 'Sentence case' },
+        ],
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.string-case',
+    },
+  },
+  {
+    id: 'regex-match',
+    categoryId: 'data',
+    name: 'Regex match',
+    description: 'Check whether text matches a regular expression',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'pattern',
+        label: 'Pattern',
+        type: 'text',
+        description: appendVariableHint('Regular expression pattern without slashes.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'flags',
+        label: 'Flags',
+        type: 'text',
+        description: appendVariableHint('Optional regex flags such as i for case-insensitive.'),
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.regex-match',
+    },
+  },
+  {
+    id: 'regex-replace',
+    categoryId: 'data',
+    name: 'Regex replace',
+    description: 'Find and replace text using a regular expression',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'text',
+        label: 'Text',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'pattern',
+        label: 'Pattern',
+        type: 'text',
+        description: appendVariableHint('Regular expression pattern without slashes.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'replacement',
+        label: 'Replace with',
+        type: 'text',
+        description: appendVariableHint('Replacement text. Use $1, $2 for capture groups.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'flags',
+        label: 'Flags',
+        type: 'text',
+        description: appendVariableHint('Regex flags. Defaults to g for all matches.'),
+        defaultValue: 'g',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.regex-replace',
+    },
+  },
+  {
     id: 'delay',
     categoryId: 'utilities',
     name: 'Delay',
@@ -612,6 +1194,44 @@ export function getNodeCanvasSubtitle(
         : 'Equals';
       const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
       return rightValue.length > 0 ? `${operatorLabel} "${rightValue}"` : operatorLabel;
+    }
+
+    case 'math': {
+      const operatorField = definition.fields.find((field) => field.id === 'operator');
+      const operatorLabel = operatorField
+        ? getSelectOptionLabel(operatorField, config.operator) ?? 'Add'
+        : 'Add';
+      const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
+      return rightValue.length > 0 ? `${operatorLabel} ${rightValue}` : operatorLabel;
+    }
+
+    case 'convert': {
+      const conversionField = definition.fields.find((field) => field.id === 'conversion');
+      return conversionField
+        ? getSelectOptionLabel(conversionField, config.conversion) ?? 'Convert'
+        : 'Convert';
+    }
+
+    case 'round-number': {
+      const methodField = definition.fields.find((field) => field.id === 'method');
+      return methodField
+        ? getSelectOptionLabel(methodField, config.method) ?? 'Round'
+        : 'Round';
+    }
+
+    case 'string-case': {
+      const caseField = definition.fields.find((field) => field.id === 'caseType');
+      return caseField ? getSelectOptionLabel(caseField, config.caseType) ?? 'Case' : 'Case';
+    }
+
+    case 'string-replace': {
+      const find = truncateDisplayValue(String(config.find ?? ''));
+      return find.length > 0 ? `Replace "${find}"` : 'Replace text';
+    }
+
+    case 'date-time': {
+      const format = truncateDisplayValue(String(config.format ?? ''));
+      return format.length > 0 ? format : 'Current date/time';
     }
 
     default:

@@ -9,17 +9,11 @@ import {
 import type { FlowEdge, FlowGraph, FlowNode } from '../../shared/domain/flow-graph';
 import type { GlobalVariableStore } from '../storage/global-variable-store';
 import type { RuntimeLogger } from './runtime-logger';
+import { executeDataComponentHandler } from './data-component-handlers';
+import type { FlowExecutionContext } from './flow-execution-context';
 import { createTriggerVariables, type SlackTriggerPayload } from './trigger-context';
 
-export interface FlowExecutionContext {
-  graph: FlowGraph;
-  trigger: SlackTriggerPayload;
-  variables: Record<string, unknown>;
-  globalVariableStore: GlobalVariableStore;
-  slackClient: WebClient;
-  logger: RuntimeLogger;
-  abortSignal: AbortSignal;
-}
+export type { FlowExecutionContext } from './flow-execution-context';
 
 export interface NodeExecutionResult {
   outputPortId: string | null;
@@ -312,6 +306,25 @@ async function executeNode(
           nodeId: node.id,
           nodeName: node.name,
         });
+        break;
+      }
+
+      case 'data.math':
+      case 'data.random-number':
+      case 'data.random-string':
+      case 'data.date-time':
+      case 'data.convert':
+      case 'data.round-number':
+      case 'data.string':
+      case 'data.string-length':
+      case 'data.string-replace':
+      case 'data.string-split':
+      case 'data.string-join':
+      case 'data.string-contains':
+      case 'data.string-case':
+      case 'data.regex-match':
+      case 'data.regex-replace': {
+        await executeDataComponentHandler(handlerId, node, context);
         break;
       }
 

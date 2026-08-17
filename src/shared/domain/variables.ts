@@ -203,7 +203,7 @@ export function createStoreAsField(): {
     id: 'storeAs',
     label: 'Store as',
     type: 'text',
-    description: appendVariableHint('Name of the variable to save the lookup result under.') ?? '',
+    description: appendVariableHint('Name of the variable to save the result under.') ?? '',
     required: true,
     defaultValue: '',
     supportsVariables: true,
