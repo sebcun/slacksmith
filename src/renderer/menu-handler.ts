@@ -5,7 +5,6 @@ export interface EditorMenuCallbacks {
   flushSave: () => Promise<void>;
   openSlackSettings: () => void;
   applyRuntimeState: (state: { status: BotRuntimeStatus; lastError: string | null }) => void;
-  refreshRuntimeLogs: () => Promise<void>;
   getProjectId: () => string;
   onClose: () => Promise<void>;
 }
@@ -152,7 +151,6 @@ async function handleMenuAction(action: MenuAction): Promise<void> {
         await editorCallbacks.flushSave();
         const state = await window.electronAPI.startBot();
         editorCallbacks.applyRuntimeState(state);
-        await editorCallbacks.refreshRuntimeLogs();
       } catch (error) {
         console.error('Failed to run bot from menu:', error);
         const state = await window.electronAPI.getRuntimeState();
@@ -170,7 +168,6 @@ async function handleMenuAction(action: MenuAction): Promise<void> {
       try {
         const state = await window.electronAPI.stopBot();
         editorCallbacks.applyRuntimeState(state);
-        await editorCallbacks.refreshRuntimeLogs();
       } catch (error) {
         console.error('Failed to stop bot from menu:', error);
         const state = await window.electronAPI.getRuntimeState();
@@ -189,7 +186,6 @@ async function handleMenuAction(action: MenuAction): Promise<void> {
         await editorCallbacks.flushSave();
         const state = await window.electronAPI.restartBot();
         editorCallbacks.applyRuntimeState(state);
-        await editorCallbacks.refreshRuntimeLogs();
       } catch (error) {
         console.error('Failed to restart bot from menu:', error);
         const state = await window.electronAPI.getRuntimeState();

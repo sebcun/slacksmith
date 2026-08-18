@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   RUNTIME_STOP_BOT: 'runtime:stop-bot',
   RUNTIME_RESTART_BOT: 'runtime:restart-bot',
   RUNTIME_GET_LOGS: 'runtime:get-logs',
+  RUNTIME_LOGS_UPDATED: 'runtime:logs-updated',
   FLOW_GET: 'flow:get',
   FLOW_SAVE: 'flow:save',
   SLACK_GET_CONNECTION: 'slack:get-connection',

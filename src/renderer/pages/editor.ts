@@ -21,7 +21,6 @@ import {
   type ComponentDefinition,
 } from '../../shared/domain/component-registry.js';
 import type { FlowGraph, FlowNode } from '../../shared/domain/flow-graph.js';
-import type { RuntimeLogEntry } from '../../shared/domain/runtime-log.js';
 
 const STATUS_BADGE: Record<
   BotRuntimeStatus,
@@ -480,101 +479,6 @@ function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;');
 }
 
-function formatLogTimestamp(isoDate: string): string {
-  const date = new Date(isoDate);
-
-  if (Number.isNaN(date.getTime())) {
-    return isoDate;
-  }
-
-  return date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
-
-function createRuntimeLogsPanel(): {
-  element: HTMLElement;
-  refresh: () => Promise<void>;
-  destroy: () => void;
-} {
-  const panel = document.createElement('section');
-  panel.className = 'editor-page__logs';
-  panel.setAttribute('aria-label', 'Runtime logs');
-
-  const header = document.createElement('div');
-  header.className = 'editor-page__logs-header';
-
-  const title = document.createElement('h2');
-  title.className = 'editor-page__logs-title';
-  title.textContent = 'Runtime logs';
-  header.appendChild(title);
-
-  const list = document.createElement('div');
-  list.className = 'editor-page__logs-list';
-
-  panel.appendChild(header);
-  panel.appendChild(list);
-
-  function renderEntries(entries: RuntimeLogEntry[]): void {
-    if (entries.length === 0) {
-      list.replaceChildren();
-      const empty = document.createElement('p');
-      empty.className = 'editor-page__logs-empty';
-      empty.textContent = 'Logs appear here when the bot starts and runs flows.';
-      list.appendChild(empty);
-      return;
-    }
-
-    list.replaceChildren();
-
-    for (const entry of [...entries].reverse()) {
-      const row = document.createElement('article');
-      row.className = `editor-page__log-entry editor-page__log-entry--${entry.level}`;
-
-      const meta = document.createElement('div');
-      meta.className = 'editor-page__log-entry-meta';
-      meta.innerHTML = `
-        <span class="editor-page__log-entry-time">${escapeHtml(formatLogTimestamp(entry.timestamp))}</span>
-        <span class="editor-page__log-entry-level">${escapeHtml(entry.level)}</span>
-        <span class="editor-page__log-entry-category">${escapeHtml(entry.category)}</span>
-      `;
-      row.appendChild(meta);
-
-      const message = document.createElement('p');
-      message.className = 'editor-page__log-entry-message';
-      message.textContent = entry.nodeName ? `${entry.nodeName}: ${entry.message}` : entry.message;
-      row.appendChild(message);
-
-      list.appendChild(row);
-    }
-  }
-
-  async function refresh(): Promise<void> {
-    try {
-      const entries = await window.electronAPI.getRuntimeLogs();
-      renderEntries(entries);
-    } catch (error) {
-      console.error('Failed to load runtime logs:', error);
-    }
-  }
-
-  const interval = window.setInterval(() => {
-    void refresh();
-  }, 2000);
-
-  void refresh();
-
-  return {
-    element: panel,
-    refresh,
-    destroy: () => {
-      window.clearInterval(interval);
-    },
-  };
-}
-
 function getRuntimeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -692,8 +596,6 @@ export async function renderEditorPage(
     }
   }
 
-  const runtimeLogsPanel = createRuntimeLogsPanel();
-
   function renderRuntimeError(): void {
     if (!runtimeErrorMessage) {
       runtimeErrorHost.hidden = true;
@@ -731,7 +633,6 @@ export async function renderEditorPage(
               try {
                 const state = await window.electronAPI.stopBot();
                 applyRuntimeState(state, getGraph);
-                await runtimeLogsPanel.refresh();
               } catch (error) {
                 console.error('Failed to stop bot:', error);
                 runtimeErrorMessage = getRuntimeErrorMessage(error);
@@ -753,7 +654,6 @@ export async function renderEditorPage(
                 await flushPendingSave(getGraph);
                 const state = await window.electronAPI.restartBot();
                 applyRuntimeState(state, getGraph);
-                await runtimeLogsPanel.refresh();
               } catch (error) {
                 console.error('Failed to restart bot:', error);
                 runtimeErrorMessage = getRuntimeErrorMessage(error);
@@ -777,7 +677,6 @@ export async function renderEditorPage(
               await flushPendingSave(getGraph);
               const state = await window.electronAPI.startBot();
               applyRuntimeState(state, getGraph);
-              await runtimeLogsPanel.refresh();
             } catch (error) {
               console.error('Failed to start bot:', error);
               runtimeErrorMessage = getRuntimeErrorMessage(error);
@@ -802,7 +701,6 @@ export async function renderEditorPage(
 
   async function closeEditor(): Promise<void> {
     await flushPendingSave(workspace.getGraph);
-    runtimeLogsPanel.destroy();
     setEditorMenuCallbacks(null);
     await window.electronAPI.closeBot();
     onBack();
@@ -825,7 +723,6 @@ export async function renderEditorPage(
     applyRuntimeState: (state) => {
       applyRuntimeState(state, workspace.getGraph);
     },
-    refreshRuntimeLogs: () => runtimeLogsPanel.refresh(),
     getProjectId: () => projectId,
     onClose: closeEditor,
   });
@@ -841,6 +738,21 @@ export async function renderEditorPage(
       runtimeBadgeHost,
       runtimeControlsHost,
       createButton({
+        label: 'Slack setup',
+        variant: 'secondary',
+        size: 'sm',
+        onClick: () => {
+          openSlackConnectionModal({
+            projectId,
+            initialConnection: slackConnection,
+            onConnectionChanged: async (connection) => {
+              slackConnection = connection;
+              renderSlackBadge();
+            },
+          });
+        },
+      }),
+      createButton({
         label: 'Back to home',
         variant: 'secondary',
         size: 'sm',
@@ -854,7 +766,6 @@ export async function renderEditorPage(
   page.appendChild(topbar);
   page.appendChild(runtimeErrorHost);
   page.appendChild(workspace.element);
-  page.appendChild(runtimeLogsPanel.element);
   container.appendChild(page);
 
   if (!slackConnection.configured) {

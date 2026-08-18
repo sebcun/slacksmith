@@ -56,6 +56,7 @@ export interface ElectronAPI {
   stopBot: () => Promise<StopBotResponse>;
   restartBot: () => Promise<RestartBotResponse>;
   getRuntimeLogs: () => Promise<GetRuntimeLogsResponse>;
+  onRuntimeLogsUpdated: (callback: () => void) => () => void;
   getFlowGraph: (request: GetFlowGraphRequest) => Promise<GetFlowGraphResponse>;
   saveFlowGraph: (request: SaveFlowGraphRequest) => Promise<SaveFlowGraphResponse>;
   getSlackConnection: (request: GetSlackConnectionRequest) => Promise<GetSlackConnectionResponse>;

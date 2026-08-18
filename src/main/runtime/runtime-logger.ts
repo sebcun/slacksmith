@@ -15,9 +15,23 @@ const MAX_IN_MEMORY_ENTRIES = 200;
 export class RuntimeLogger {
   private readonly entries: RuntimeLogEntry[] = [];
   private readonly logFilePath: string;
+  private readonly changeListeners = new Set<() => void>();
 
   constructor(projectPath: string) {
     this.logFilePath = path.join(projectPath, RUNTIME_LOG_RELATIVE_DIR, RUNTIME_LOG_FILE_NAME);
+  }
+
+  onChange(listener: () => void): () => void {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+
+  private emitChange(): void {
+    for (const listener of this.changeListeners) {
+      listener();
+    }
   }
 
   log(
@@ -48,6 +62,7 @@ export class RuntimeLogger {
     }
 
     void this.persistEntry(entry);
+    this.emitChange();
 
     return entry;
   }
@@ -74,6 +89,7 @@ export class RuntimeLogger {
 
   clear(): void {
     this.entries.length = 0;
+    this.emitChange();
   }
 
   private async persistEntry(entry: RuntimeLogEntry): Promise<void> {

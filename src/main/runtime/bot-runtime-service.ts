@@ -10,6 +10,7 @@ import { loadFlowGraph } from '../storage/flow-storage-service';
 import { GlobalVariableStore } from '../storage/global-variable-store';
 import { findProjectById } from '../storage/project-storage-service';
 import { loadSlackConfigForProject } from '../storage/slack-config-service';
+import { closeLogsWindow, sendLogsUpdated } from '../logs-window';
 import { RuntimeLogger } from './runtime-logger';
 import { SlackSocketRuntime } from './slack-socket-runtime';
 
@@ -19,6 +20,12 @@ let lastError: string | null = null;
 let activeSession: SlackSocketRuntime | null = null;
 let activeLogger: RuntimeLogger | null = null;
 let activeGlobalVariableStore: GlobalVariableStore | null = null;
+
+function attachLoggerNotifications(logger: RuntimeLogger): void {
+  logger.onChange(() => {
+    sendLogsUpdated();
+  });
+}
 
 function createRuntimeState(): BotRuntimeState {
   return {
@@ -80,6 +87,7 @@ export async function openBot(projectId: string): Promise<BotRuntimeState> {
   status = 'inactive';
   lastError = null;
   activeLogger = new RuntimeLogger(project.path);
+  attachLoggerNotifications(activeLogger);
 
   return createRuntimeState();
 }
@@ -113,6 +121,7 @@ export async function startBot(): Promise<BotRuntimeState> {
 
   if (!activeLogger) {
     activeLogger = new RuntimeLogger(activeProject.path);
+    attachLoggerNotifications(activeLogger);
   } else {
     activeLogger.clear();
   }
@@ -186,6 +195,8 @@ export async function closeBot(): Promise<BotRuntimeState> {
   if (status === 'running' || status === 'paused' || status === 'error') {
     await stopExecution();
   }
+
+  closeLogsWindow();
 
   activeProject = null;
   status = 'inactive';

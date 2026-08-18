@@ -36,6 +36,7 @@ const IPC_CHANNELS = {
   RUNTIME_STOP_BOT: 'runtime:stop-bot',
   RUNTIME_RESTART_BOT: 'runtime:restart-bot',
   RUNTIME_GET_LOGS: 'runtime:get-logs',
+  RUNTIME_LOGS_UPDATED: 'runtime:logs-updated',
   FLOW_GET: 'flow:get',
   FLOW_SAVE: 'flow:save',
   SLACK_GET_CONNECTION: 'slack:get-connection',
@@ -68,6 +69,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_STOP_BOT),
   restartBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_RESTART_BOT),
   getRuntimeLogs: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_GET_LOGS),
+  onRuntimeLogsUpdated: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on(IPC_CHANNELS.RUNTIME_LOGS_UPDATED, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.RUNTIME_LOGS_UPDATED, listener);
+    };
+  },
   getFlowGraph: (request: GetFlowGraphRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.FLOW_GET, request),
   saveFlowGraph: (request: SaveFlowGraphRequest) =>

@@ -4,6 +4,7 @@ import type { AppStateReport } from '../../shared/ipc/menu-contracts';
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import type { BotProject } from '../../shared/ipc/project-contracts';
 import { listProjects } from '../storage/project-storage-service';
+import { openLogsWindow } from '../logs-window';
 import { getMainWindow } from '../window';
 
 const RECENT_PROJECTS_LIMIT = 10;
@@ -123,8 +124,17 @@ function buildMenuTemplate(recentProjects: BotProject[]): MenuItemConstructorOpt
     },
     { type: 'separator' },
     {
+      id: 'bot-open-logs',
+      label: 'Open Logs',
+      enabled: false,
+      click: () => {
+        openLogsWindow();
+      },
+    },
+    { type: 'separator' },
+    {
       id: 'bot-slack-settings',
-      label: 'Manage Slack Connection Settings',
+      label: 'Manage Slack Settings',
       enabled: false,
       click: () => {
         sendMenuAction({ type: 'bot:slack-settings' });
@@ -202,6 +212,7 @@ function updateBotMenuState(state: AppStateReport): void {
   setMenuItemEnabled('bot-run', hasProject && !isRunning);
   setMenuItemEnabled('bot-stop', hasProject && isRunning);
   setMenuItemEnabled('bot-restart', hasProject && isRunning);
+  setMenuItemEnabled('bot-open-logs', hasProject);
   setMenuItemEnabled('bot-slack-settings', hasProject);
 }
 
