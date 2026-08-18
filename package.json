@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Build a Slack bot with no code",
   "main": "dist/main/index.js",
+  "productName": "SlackSmith",
   "scripts": {
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});\"",

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import type {
   GetFlowGraphRequest,
@@ -10,6 +10,7 @@ import type {
   DuplicateProjectRequest,
   OpenProjectRequest,
   RenameProjectRequest,
+  SaveProjectAsRequest,
 } from '../shared/ipc/project-contracts';
 import type { OpenBotRequest } from '../shared/ipc/runtime-contracts';
 import type {
@@ -17,6 +18,7 @@ import type {
   GetSlackConnectionRequest,
   SaveSlackConnectionRequest,
 } from '../shared/ipc/slack-contracts';
+import type { AppStateReport, MenuAction } from '../shared/ipc/menu-contracts';
 
 const IPC_CHANNELS = {
   GET_APP_INFO: 'app:get-info',
@@ -26,6 +28,7 @@ const IPC_CHANNELS = {
   PROJECTS_RENAME: 'projects:rename',
   PROJECTS_DELETE: 'projects:delete',
   PROJECTS_DUPLICATE: 'projects:duplicate',
+  PROJECTS_SAVE_AS: 'projects:save-as',
   RUNTIME_GET_STATE: 'runtime:get-state',
   RUNTIME_OPEN_BOT: 'runtime:open-bot',
   RUNTIME_CLOSE_BOT: 'runtime:close-bot',
@@ -38,6 +41,9 @@ const IPC_CHANNELS = {
   SLACK_GET_CONNECTION: 'slack:get-connection',
   SLACK_SAVE_CONNECTION: 'slack:save-connection',
   SLACK_CLEAR_CONNECTION: 'slack:clear-connection',
+  MENU_ACTION: 'menu:action',
+  APP_REPORT_STATE: 'app:report-state',
+  MENU_REFRESH_RECENT: 'menu:refresh-recent',
 } as const;
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -53,6 +59,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.PROJECTS_DELETE, request),
   duplicateProject: (request: DuplicateProjectRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECTS_DUPLICATE, request),
+  saveProjectAs: (request: SaveProjectAsRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECTS_SAVE_AS, request),
   getRuntimeState: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_GET_STATE),
   openBot: (request: OpenBotRequest) => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_OPEN_BOT, request),
   closeBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_CLOSE_BOT),
@@ -70,4 +78,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.SLACK_SAVE_CONNECTION, request),
   clearSlackConnection: (request: ClearSlackConnectionRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.SLACK_CLEAR_CONNECTION, request),
+  onMenuAction: (callback: (action: MenuAction) => void) => {
+    const listener = (_event: IpcRendererEvent, action: MenuAction) => {
+      callback(action);
+    };
+    ipcRenderer.on(IPC_CHANNELS.MENU_ACTION, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MENU_ACTION, listener);
+    };
+  },
+  reportAppState: (state: AppStateReport) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_REPORT_STATE, state),
+  refreshRecentProjectsMenu: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_REFRESH_RECENT),
 });

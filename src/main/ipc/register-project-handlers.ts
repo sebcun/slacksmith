@@ -7,6 +7,7 @@ import type {
   DuplicateProjectRequest,
   OpenProjectRequest,
   RenameProjectRequest,
+  SaveProjectAsRequest,
 } from '../../shared/ipc/project-contracts';
 import { ProjectStorageError } from '../../shared/ipc/project-contracts';
 import { closeBot, isBotActive, syncActiveProject } from '../runtime/bot-runtime-service';
@@ -18,6 +19,7 @@ import {
   listProjects,
   openProject,
   renameProject,
+  saveProjectAs,
 } from '../storage/project-storage-service';
 
 function rethrowProjectStorageError(error: unknown): never {
@@ -85,4 +87,12 @@ export function registerProjectIpcHandlers(): void {
       }
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.PROJECTS_SAVE_AS, async (_event, request: SaveProjectAsRequest) => {
+    try {
+      return await saveProjectAs(request.id);
+    } catch (error) {
+      rethrowProjectStorageError(error);
+    }
+  });
 }

@@ -57,7 +57,7 @@ function resolveConfigNumber(value: unknown, scope: VariableScope, label: string
   return numeric;
 }
 
-function resolveConfigInteger(
+export function resolveConfigInteger(
   value: unknown,
   scope: VariableScope,
   label: string,
@@ -338,9 +338,9 @@ function applyStringCase(text: string, caseType: string): string {
   }
 }
 
-function resolveArrayInput(value: unknown): string[] {
+export function resolveArrayValue(value: unknown): unknown[] {
   if (Array.isArray(value)) {
-    return value.map((entry) => String(entry));
+    return value;
   }
 
   const text = String(value ?? '').trim();
@@ -349,6 +349,48 @@ function resolveArrayInput(value: unknown): string[] {
   }
 
   return text.split(',').map((entry) => entry.trim());
+}
+
+function resolveArrayInput(value: unknown): string[] {
+  return resolveArrayValue(value).map((entry) => String(entry));
+}
+
+function cloneArray(array: unknown[]): unknown[] {
+  return [...array];
+}
+
+function resolveArrayIndex(index: number, length: number): number {
+  const normalized = Math.trunc(index);
+  if (normalized < 0) {
+    return length + normalized;
+  }
+
+  return normalized;
+}
+
+function sortArray(values: unknown[], method: string): unknown[] {
+  const copy = cloneArray(values);
+
+  switch (method) {
+    case 'ascending':
+      return copy.sort((left, right) => {
+        const leftNumber = Number(left);
+        const rightNumber = Number(right);
+        if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+          return leftNumber - rightNumber;
+        }
+
+        return String(left).localeCompare(String(right), undefined, { numeric: true });
+      });
+    case 'descending':
+      return sortArray(copy, 'ascending').reverse();
+    case 'alphabetical':
+      return copy.sort((left, right) => String(left).localeCompare(String(right)));
+    case 'reverse-alphabetical':
+      return copy.sort((left, right) => String(right).localeCompare(String(left)));
+    default:
+      throw new Error(`Unsupported sort method: ${method}`);
+  }
 }
 
 function createRegex(pattern: string, flags: string): RegExp {
@@ -498,6 +540,110 @@ export async function executeDataComponentHandler(
       const flags = fields.string('flags') || 'g';
       const regex = createRegex(pattern, flags);
       storeResult(context, scope, fields.string('storeAs'), text.replace(regex, replacement));
+      break;
+    }
+
+    case 'data.array': {
+      const rawValues = node.config.values;
+      const values = Array.isArray(rawValues) ? rawValues : [];
+      const resolvedValues = values.map((entry) => resolveConfigValue(entry, scope));
+      storeResult(context, scope, fields.string('storeAs'), resolvedValues);
+      break;
+    }
+
+    case 'data.array-get': {
+      const array = resolveArrayValue(fields.value('array'));
+      const index = resolveArrayIndex(
+        fields.integer('index', 'index'),
+        array.length,
+      );
+
+      if (index < 0 || index >= array.length) {
+        throw new Error(`Array index ${index} is out of bounds.`);
+      }
+
+      storeResult(context, scope, fields.string('storeAs'), array[index]);
+      break;
+    }
+
+    case 'data.array-set': {
+      const array = cloneArray(resolveArrayValue(fields.value('array')));
+      const index = resolveArrayIndex(
+        fields.integer('index', 'index'),
+        array.length,
+      );
+
+      if (index < 0 || index >= array.length) {
+        throw new Error(`Array index ${index} is out of bounds.`);
+      }
+
+      array[index] = fields.value('value');
+      storeResult(context, scope, fields.string('storeAs'), array);
+      break;
+    }
+
+    case 'data.array-length': {
+      const array = resolveArrayValue(fields.value('array'));
+      storeResult(context, scope, fields.string('storeAs'), array.length);
+      break;
+    }
+
+    case 'data.array-add': {
+      const array = cloneArray(resolveArrayValue(fields.value('array')));
+      const value = fields.value('value');
+      const positionRaw = node.config.position;
+
+      if (
+        positionRaw === undefined ||
+        positionRaw === null ||
+        String(positionRaw).trim().length === 0
+      ) {
+        array.push(value);
+      } else {
+        const position = resolveArrayIndex(
+          fields.integer('position', 'position'),
+          array.length,
+        );
+        const clampedPosition = Math.max(0, Math.min(position, array.length));
+        array.splice(clampedPosition, 0, value);
+      }
+
+      storeResult(context, scope, fields.string('storeAs'), array);
+      break;
+    }
+
+    case 'data.array-remove': {
+      const array = cloneArray(resolveArrayValue(fields.value('array')));
+      const index = resolveArrayIndex(
+        fields.integer('index', 'index'),
+        array.length,
+      );
+
+      if (index < 0 || index >= array.length) {
+        throw new Error(`Array index ${index} is out of bounds.`);
+      }
+
+      array.splice(index, 1);
+      storeResult(context, scope, fields.string('storeAs'), array);
+      break;
+    }
+
+    case 'data.array-sort': {
+      const array = resolveArrayValue(fields.value('array'));
+      const method = fields.string('method');
+      storeResult(context, scope, fields.string('storeAs'), sortArray(array, method));
+      break;
+    }
+
+    case 'data.array-random-item': {
+      const array = resolveArrayValue(fields.value('array'));
+
+      if (array.length === 0) {
+        throw new Error('Cannot pick a random item from an empty array.');
+      }
+
+      const randomIndex = Math.floor(Math.random() * array.length);
+      storeResult(context, scope, fields.string('storeAs'), array[randomIndex]);
       break;
     }
 

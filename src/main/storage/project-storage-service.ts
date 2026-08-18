@@ -109,7 +109,7 @@ async function readRegistry(): Promise<ProjectRegistryFile> {
       };
     }
   } catch {
-    // 
+    //
   }
 
   return { externalPaths: [] };
@@ -420,6 +420,79 @@ export async function duplicateProject(projectId: string, name: string): Promise
       updatedAt: now,
     },
     projectPath,
+  );
+}
+
+export async function saveProjectAs(projectId: string): Promise<BotProject | null> {
+  const sourceProject = await findProjectById(projectId);
+
+  if (!sourceProject) {
+    throw new ProjectStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
+  }
+
+  const result = await dialog.showOpenDialog({
+    title: 'Save Project As',
+    buttonLabel: 'Save',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const destinationPath = path.resolve(result.filePaths[0]);
+
+  if (destinationPath === path.resolve(sourceProject.path)) {
+    throw new ProjectStorageError(
+      'INVALID_PROJECT',
+      'Choose a different folder to save a copy of the project.',
+    );
+  }
+
+  const existingProjectFile = await readProjectFile(destinationPath);
+  if (existingProjectFile) {
+    throw new ProjectStorageError(
+      'INVALID_PROJECT',
+      'The selected folder already contains a project.',
+    );
+  }
+
+  const destinationEntries = await fs.readdir(destinationPath).catch(() => null);
+  if (destinationEntries && destinationEntries.length > 0) {
+    throw new ProjectStorageError(
+      'INVALID_PROJECT',
+      'The selected folder must be empty.',
+    );
+  }
+
+  const now = new Date().toISOString();
+  const id = randomUUID();
+
+  try {
+    await fs.cp(sourceProject.path, destinationPath, { recursive: true });
+
+    const savedProjectFile: ProjectFile = {
+      id,
+      name: sourceProject.name,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await writeProjectFile(destinationPath, savedProjectFile);
+  } catch {
+    await fs.rm(destinationPath, { recursive: true, force: true }).catch(() => undefined);
+    throw new ProjectStorageError('IO_ERROR', 'Unable to save the project copy.');
+  }
+
+  await registerExternalPathIfNeeded(destinationPath);
+  return toBotProject(
+    {
+      id,
+      name: sourceProject.name,
+      createdAt: now,
+      updatedAt: now,
+    },
+    destinationPath,
   );
 }
 

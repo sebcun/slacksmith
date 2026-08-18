@@ -9,7 +9,7 @@ import {
 import type { FlowEdge, FlowGraph, FlowNode } from '../../shared/domain/flow-graph';
 import type { GlobalVariableStore } from '../storage/global-variable-store';
 import type { RuntimeLogger } from './runtime-logger';
-import { executeDataComponentHandler } from './data-component-handlers';
+import { executeDataComponentHandler, resolveArrayValue, resolveConfigInteger, resolveConfigValue } from './data-component-handlers';
 import type { FlowExecutionContext } from './flow-execution-context';
 import { createTriggerVariables, type SlackTriggerPayload } from './trigger-context';
 
@@ -151,6 +151,60 @@ function findNextNode(
   );
 
   return edge?.targetNodeId ?? null;
+}
+
+const MAX_LOOP_ITERATIONS = 10000;
+
+async function executeFromNode(
+  startNodeId: string | null,
+  context: FlowExecutionContext,
+): Promise<void> {
+  if (!startNodeId) {
+    return;
+  }
+
+  let currentNodeId: string | null = startNodeId;
+  const visited = new Set<string>();
+
+  while (currentNodeId && !context.abortSignal.aborted) {
+    if (visited.has(currentNodeId)) {
+      context.logger.warn('execution', 'Cycle detected in loop body; stopping iteration.', {
+        nodeId: currentNodeId,
+      });
+      break;
+    }
+
+    visited.add(currentNodeId);
+
+    const node = context.graph.nodes.find((candidate) => candidate.id === currentNodeId);
+
+    if (!node) {
+      context.logger.warn('execution', 'Loop body referenced a missing node.', {
+        nodeId: currentNodeId,
+      });
+      break;
+    }
+
+    const result = await executeNode(node, context);
+
+    if (result.terminate) {
+      break;
+    }
+
+    if (!result.outputPortId) {
+      break;
+    }
+
+    currentNodeId = findNextNode(context.graph, node.id, result.outputPortId);
+  }
+}
+
+async function executeLoopBody(
+  loopNode: FlowNode,
+  context: FlowExecutionContext,
+): Promise<void> {
+  const bodyStartId = findNextNode(context.graph, loopNode.id, 'loop');
+  await executeFromNode(bodyStartId, context);
 }
 
 function sleep(seconds: number, abortSignal: AbortSignal): Promise<void> {
@@ -468,9 +522,104 @@ async function executeNode(
       case 'data.string-contains':
       case 'data.string-case':
       case 'data.regex-match':
-      case 'data.regex-replace': {
+      case 'data.regex-replace':
+      case 'data.array':
+      case 'data.array-get':
+      case 'data.array-set':
+      case 'data.array-length':
+      case 'data.array-add':
+      case 'data.array-remove':
+      case 'data.array-sort':
+      case 'data.array-random-item': {
         await executeDataComponentHandler(handlerId, node, context);
         break;
+      }
+
+      case 'loop.for-each': {
+        const arrayInput = resolveConfigValue(node.config.array, scope);
+        const items = resolveArrayValue(arrayInput);
+        const itemVariable = fieldValue('itemVariable').trim() || 'item';
+        const indexVariable = fieldValue('indexVariable').trim() || 'index';
+
+        context.logger.info('execution', `Looping over ${items.length} item(s)`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+
+        for (let index = 0; index < items.length; index += 1) {
+          const itemTarget = setScopedVariable(scope, itemVariable, items[index]);
+          const indexTarget = setScopedVariable(scope, indexVariable, index);
+          if (itemTarget === 'global' || indexTarget === 'global') {
+            context.globalVariableStore.scheduleSave();
+          }
+          await executeLoopBody(node, context);
+
+          if (context.abortSignal.aborted) {
+            break;
+          }
+        }
+
+        return { outputPortId: 'done', terminate: false };
+      }
+
+      case 'loop.repeat': {
+        const count = resolveConfigInteger(node.config.count, scope, 'count', 0);
+        const indexVariable = fieldValue('indexVariable').trim() || 'index';
+
+        context.logger.info('execution', `Repeating ${count} time(s)`, {
+          nodeId: node.id,
+          nodeName: node.name,
+        });
+
+        for (let index = 0; index < count; index += 1) {
+          const indexTarget = setScopedVariable(scope, indexVariable, index);
+          if (indexTarget === 'global') {
+            context.globalVariableStore.scheduleSave();
+          }
+          await executeLoopBody(node, context);
+
+          if (context.abortSignal.aborted) {
+            break;
+          }
+        }
+
+        return { outputPortId: 'done', terminate: false };
+      }
+
+      case 'loop.while': {
+        const operator = fieldValue('operator');
+        let iterations = 0;
+
+        while (iterations < MAX_LOOP_ITERATIONS) {
+          const currentScope = createVariableScope(context);
+          const leftValue = resolveConfigString(node.config.leftValue, currentScope);
+          const rightValue = resolveConfigString(node.config.rightValue, currentScope);
+
+          if (!compareValues(leftValue, operator, rightValue)) {
+            break;
+          }
+
+          iterations += 1;
+          context.logger.info('execution', `While loop iteration ${iterations}`, {
+            nodeId: node.id,
+            nodeName: node.name,
+          });
+
+          await executeLoopBody(node, context);
+
+          if (context.abortSignal.aborted) {
+            break;
+          }
+        }
+
+        if (iterations >= MAX_LOOP_ITERATIONS) {
+          context.logger.warn('execution', 'While loop reached the maximum iteration limit.', {
+            nodeId: node.id,
+            nodeName: node.name,
+          });
+        }
+
+        return { outputPortId: 'done', terminate: false };
       }
 
       case 'condition.if-else': {

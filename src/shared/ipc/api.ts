@@ -17,6 +17,8 @@ import type {
   OpenProjectResponse,
   RenameProjectRequest,
   RenameProjectResponse,
+  SaveProjectAsRequest,
+  SaveProjectAsResponse,
 } from './project-contracts';
 import type {
   CloseBotResponse,
@@ -36,6 +38,7 @@ import type {
   SaveSlackConnectionRequest,
   SaveSlackConnectionResponse,
 } from './slack-contracts';
+import type { AppStateReport, MenuAction } from './menu-contracts';
 
 export interface ElectronAPI {
   getAppInfo: () => Promise<GetAppInfoResponse>;
@@ -45,6 +48,7 @@ export interface ElectronAPI {
   renameProject: (request: RenameProjectRequest) => Promise<RenameProjectResponse>;
   deleteProject: (request: DeleteProjectRequest) => Promise<DeleteProjectResponse>;
   duplicateProject: (request: DuplicateProjectRequest) => Promise<DuplicateProjectResponse>;
+  saveProjectAs: (request: SaveProjectAsRequest) => Promise<SaveProjectAsResponse>;
   getRuntimeState: () => Promise<GetRuntimeStateResponse>;
   openBot: (request: OpenBotRequest) => Promise<OpenBotResponse>;
   closeBot: () => Promise<CloseBotResponse>;
@@ -61,4 +65,7 @@ export interface ElectronAPI {
   clearSlackConnection: (
     request: ClearSlackConnectionRequest,
   ) => Promise<ClearSlackConnectionResponse>;
+  onMenuAction: (callback: (action: MenuAction) => void) => () => void;
+  reportAppState: (state: AppStateReport) => Promise<void>;
+  refreshRecentProjectsMenu: () => Promise<void>;
 }

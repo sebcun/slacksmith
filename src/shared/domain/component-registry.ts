@@ -3,6 +3,7 @@ import { appendVariableHint, createStoreAsField } from './variables.js';
 export const COMPONENT_CATEGORIES = [
   { id: 'triggers', label: 'Triggers' },
   { id: 'conditions', label: 'Conditions' },
+  { id: 'loops', label: 'Loops' },
   { id: 'actions', label: 'Actions' },
   { id: 'data', label: 'Data' },
   { id: 'utilities', label: 'Utilities' },
@@ -18,7 +19,7 @@ export interface ComponentPortDefinition {
   direction: ComponentPortDirection;
 }
 
-export type ConfigFieldType = 'text' | 'number' | 'select' | 'channel' | 'boolean';
+export type ConfigFieldType = 'text' | 'number' | 'select' | 'channel' | 'boolean' | 'list';
 
 export interface ConfigFieldOption {
   value: string;
@@ -31,7 +32,7 @@ export interface ConfigFieldDefinition {
   type: ConfigFieldType;
   description?: string;
   required?: boolean;
-  defaultValue?: string | number | boolean;
+  defaultValue?: string | number | boolean | string[];
   options?: ConfigFieldOption[];
   /** When true, field values may include ${variableName} references. */
   supportsVariables?: boolean;
@@ -75,6 +76,24 @@ const TRIGGER_OUTPUT: ComponentPortDefinition = {
 const BRANCH_OUTPUTS: ComponentPortDefinition[] = [
   { id: 'true', label: 'True', direction: 'output' },
   { id: 'false', label: 'False', direction: 'output' },
+];
+
+const LOOP_OUTPUTS: ComponentPortDefinition[] = [
+  { id: 'loop', label: 'Loop', direction: 'output' },
+  { id: 'done', label: 'Done', direction: 'output' },
+];
+
+const COMPARISON_OPERATOR_OPTIONS: ConfigFieldOption[] = [
+  { value: 'equals', label: 'Equals' },
+  { value: 'not-equals', label: 'Does not equal' },
+  { value: 'contains', label: 'Contains' },
+  { value: 'not-contains', label: 'Does not contain' },
+  { value: 'starts-with', label: 'Starts with' },
+  { value: 'ends-with', label: 'Ends with' },
+  { value: 'greater-than', label: 'Greater than' },
+  { value: 'greater-than-or-equal', label: 'Greater than or equal to' },
+  { value: 'less-than', label: 'Less than' },
+  { value: 'less-than-or-equal', label: 'Less than or equal to' },
 ];
 
 export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
@@ -258,18 +277,7 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         type: 'select',
         required: true,
         defaultValue: 'equals',
-        options: [
-          { value: 'equals', label: 'Equals' },
-          { value: 'not-equals', label: 'Does not equal' },
-          { value: 'contains', label: 'Contains' },
-          { value: 'not-contains', label: 'Does not contain' },
-          { value: 'starts-with', label: 'Starts with' },
-          { value: 'ends-with', label: 'Ends with' },
-          { value: 'greater-than', label: 'Greater than' },
-          { value: 'greater-than-or-equal', label: 'Greater than or equal to' },
-          { value: 'less-than', label: 'Less than' },
-          { value: 'less-than-or-equal', label: 'Less than or equal to' },
-        ],
+        options: COMPARISON_OPERATOR_OPTIONS,
       },
       {
         id: 'rightValue',
@@ -283,6 +291,116 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     execution: {
       handlerId: 'condition.if-else',
+    },
+  },
+  {
+    id: 'for-each',
+    categoryId: 'loops',
+    name: 'For Each',
+    description: 'Loop through every item in an array',
+    inputs: [FLOW_INPUT],
+    outputs: LOOP_OUTPUTS,
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to loop through.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'itemVariable',
+        label: 'Item variable',
+        type: 'text',
+        description: appendVariableHint('Variable name for the current item.'),
+        required: true,
+        defaultValue: 'item',
+        supportsVariables: true,
+      },
+      {
+        id: 'indexVariable',
+        label: 'Index variable',
+        type: 'text',
+        description: appendVariableHint('Variable name for the current index.'),
+        required: true,
+        defaultValue: 'index',
+        supportsVariables: true,
+      },
+    ],
+    execution: {
+      handlerId: 'loop.for-each',
+    },
+  },
+  {
+    id: 'repeat',
+    categoryId: 'loops',
+    name: 'Repeat',
+    description: 'Repeat connected steps a specified number of times',
+    inputs: [FLOW_INPUT],
+    outputs: LOOP_OUTPUTS,
+    fields: [
+      {
+        id: 'count',
+        label: 'Times',
+        type: 'text',
+        description: appendVariableHint('How many times to repeat the loop body.'),
+        required: true,
+        defaultValue: '5',
+        supportsVariables: true,
+      },
+      {
+        id: 'indexVariable',
+        label: 'Index variable',
+        type: 'text',
+        description: appendVariableHint('Variable name for the current iteration number.'),
+        required: true,
+        defaultValue: 'index',
+        supportsVariables: true,
+      },
+    ],
+    execution: {
+      handlerId: 'loop.repeat',
+    },
+  },
+  {
+    id: 'while',
+    categoryId: 'loops',
+    name: 'While',
+    description: 'Repeat connected steps while a condition is true',
+    inputs: [FLOW_INPUT],
+    outputs: LOOP_OUTPUTS,
+    fields: [
+      {
+        id: 'leftValue',
+        label: 'Value',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'operator',
+        label: 'Operator',
+        type: 'select',
+        required: true,
+        defaultValue: 'equals',
+        options: COMPARISON_OPERATOR_OPTIONS,
+      },
+      {
+        id: 'rightValue',
+        label: 'Compare to',
+        type: 'text',
+        description: appendVariableHint(),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+    ],
+    execution: {
+      handlerId: 'loop.while',
     },
   },
   {
@@ -1233,6 +1351,257 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
+    id: 'array',
+    categoryId: 'data',
+    name: 'Array',
+    description: 'Create an array containing multiple values',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'values',
+        label: 'Values',
+        type: 'list',
+        description: appendVariableHint('Add, remove, and reorder values in the array.'),
+        defaultValue: [''],
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array',
+    },
+  },
+  {
+    id: 'array-get',
+    categoryId: 'data',
+    name: 'Array Get',
+    description: 'Retrieve an item from an array by index',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to read from.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'index',
+        label: 'Index',
+        type: 'text',
+        description: appendVariableHint('Position of the item to retrieve.'),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-get',
+    },
+  },
+  {
+    id: 'array-set',
+    categoryId: 'data',
+    name: 'Array Set',
+    description: 'Replace the value at a specific index in an array',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to update.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'index',
+        label: 'Index',
+        type: 'text',
+        description: appendVariableHint('Position of the item to replace.'),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      {
+        id: 'value',
+        label: 'New value',
+        type: 'text',
+        description: appendVariableHint('Value to store at the index.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-set',
+    },
+  },
+  {
+    id: 'array-length',
+    categoryId: 'data',
+    name: 'Array Length',
+    description: 'Get the number of items in an array',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to measure.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-length',
+    },
+  },
+  {
+    id: 'array-add',
+    categoryId: 'data',
+    name: 'Array Add',
+    description: 'Add a value to an array at a position or at the end',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to add to.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'value',
+        label: 'Value',
+        type: 'text',
+        description: appendVariableHint('Value to add.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'position',
+        label: 'Position',
+        type: 'text',
+        description: appendVariableHint(
+          'Optional index where the value should be inserted. Leave blank to append to the end.',
+        ),
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-add',
+    },
+  },
+  {
+    id: 'array-remove',
+    categoryId: 'data',
+    name: 'Array Remove',
+    description: 'Remove an item from an array by index',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to remove from.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'index',
+        label: 'Index',
+        type: 'text',
+        description: appendVariableHint('Position of the item to remove.'),
+        required: true,
+        defaultValue: '0',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-remove',
+    },
+  },
+  {
+    id: 'array-sort',
+    categoryId: 'data',
+    name: 'Array Sort',
+    description: 'Sort the values in an array',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to sort.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'method',
+        label: 'Sort method',
+        type: 'select',
+        required: true,
+        defaultValue: 'ascending',
+        options: [
+          { value: 'ascending', label: 'Ascending' },
+          { value: 'descending', label: 'Descending' },
+          { value: 'alphabetical', label: 'Alphabetical' },
+          { value: 'reverse-alphabetical', label: 'Reverse alphabetical' },
+        ],
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-sort',
+    },
+  },
+  {
+    id: 'array-random-item',
+    categoryId: 'data',
+    name: 'Array Random Item',
+    description: 'Randomly select one item from an array',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'array',
+        label: 'Array',
+        type: 'text',
+        description: appendVariableHint('Array to pick from.'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+    ],
+    execution: {
+      handlerId: 'data.array-random-item',
+    },
+  },
+  {
     id: 'delay',
     categoryId: 'utilities',
     name: 'Delay',
@@ -1331,6 +1700,11 @@ export function createDefaultNodeConfig(typeId: string): Record<string, unknown>
   for (const field of definition.fields) {
     if (field.defaultValue !== undefined) {
       config[field.id] = field.defaultValue;
+      continue;
+    }
+
+    if (field.type === 'list') {
+      config[field.id] = [''];
     }
   }
   return config;
@@ -1348,6 +1722,8 @@ export function formatConfigFieldType(type: ConfigFieldType): string {
       return 'Channel';
     case 'boolean':
       return 'Yes / no';
+    case 'list':
+      return 'List';
     default:
       return type;
   }
@@ -1392,6 +1768,37 @@ export function getNodeCanvasSubtitle(
         : 'Equals';
       const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
       return rightValue.length > 0 ? `${operatorLabel} "${rightValue}"` : operatorLabel;
+    }
+
+    case 'while': {
+      const operatorField = definition.fields.find((field) => field.id === 'operator');
+      const operatorLabel = operatorField
+        ? getSelectOptionLabel(operatorField, config.operator) ?? 'Equals'
+        : 'Equals';
+      const rightValue = truncateDisplayValue(String(config.rightValue ?? ''));
+      return rightValue.length > 0 ? `${operatorLabel} "${rightValue}"` : operatorLabel;
+    }
+
+    case 'for-each': {
+      const itemVariable = truncateDisplayValue(String(config.itemVariable ?? 'item'));
+      return `Each as ${itemVariable}`;
+    }
+
+    case 'repeat': {
+      const count = truncateDisplayValue(String(config.count ?? '5'));
+      return count.length > 0 ? `${count} times` : 'Repeat';
+    }
+
+    case 'array': {
+      const values = Array.isArray(config.values) ? config.values : [];
+      return `${values.length} value${values.length === 1 ? '' : 's'}`;
+    }
+
+    case 'array-sort': {
+      const methodField = definition.fields.find((field) => field.id === 'method');
+      return methodField
+        ? getSelectOptionLabel(methodField, config.method) ?? 'Sort'
+        : 'Sort';
     }
 
     case 'math': {

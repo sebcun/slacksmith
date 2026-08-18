@@ -9,6 +9,7 @@ import {
 } from '../editor/flow-canvas-engine.js';
 import { createNodeConfigForm } from '../editor/node-config-form.js';
 import { openSlackConnectionModal } from './slack-connection-modal.js';
+import { reportAppState, setEditorMenuCallbacks } from '../menu-handler.js';
 import type { BotRuntimeStatus } from '../../shared/domain/bot-project.js';
 import type { SlackConnectionSummary } from '../../shared/domain/slack-config.js';
 import {
@@ -712,6 +713,7 @@ export async function renderEditorPage(
     renderRuntimeBadge();
     renderRuntimeControls(getGraph);
     renderRuntimeError();
+    void reportAppState();
   }
 
   function renderRuntimeControls(getGraph: () => FlowGraph): void {
@@ -797,6 +799,38 @@ export async function renderEditorPage(
   renderRuntimeControls(workspace.getGraph);
   renderRuntimeError();
 
+  async function closeEditor(): Promise<void> {
+    await flushPendingSave(workspace.getGraph);
+    runtimeLogsPanel.destroy();
+    setEditorMenuCallbacks(null);
+    await window.electronAPI.closeBot();
+    onBack();
+  }
+
+  setEditorMenuCallbacks({
+    flushSave: async () => {
+      await flushPendingSave(workspace.getGraph);
+    },
+    openSlackSettings: () => {
+      openSlackConnectionModal({
+        projectId,
+        initialConnection: slackConnection,
+        onConnectionChanged: async (connection) => {
+          slackConnection = connection;
+          renderSlackBadge();
+        },
+      });
+    },
+    applyRuntimeState: (state) => {
+      applyRuntimeState(state, workspace.getGraph);
+    },
+    refreshRuntimeLogs: () => runtimeLogsPanel.refresh(),
+    getProjectId: () => projectId,
+    onClose: closeEditor,
+  });
+
+  void reportAppState();
+
   const topbar = createTopBar({
     title: projectName,
     subtitle: 'Bot editor',
@@ -825,12 +859,7 @@ export async function renderEditorPage(
         variant: 'secondary',
         size: 'sm',
         onClick: () => {
-          void (async () => {
-            await flushPendingSave(workspace.getGraph);
-            runtimeLogsPanel.destroy();
-            await window.electronAPI.closeBot();
-            onBack();
-          })();
+          void closeEditor();
         },
       }),
     ],

@@ -67,6 +67,7 @@ async function openBotInApp(
 ): Promise<void> {
   try {
     await window.electronAPI.openBot({ id: projectId });
+    await window.electronAPI.refreshRecentProjectsMenu();
     navigate('editor');
   } catch (error) {
     console.error('Failed to open bot:', error);
@@ -100,6 +101,7 @@ async function handleOpenProject(
 
     if (project) {
       await onProjectsChanged();
+      await window.electronAPI.refreshRecentProjectsMenu();
       await openBotInApp(project.id, navigate);
     }
   } catch (error) {

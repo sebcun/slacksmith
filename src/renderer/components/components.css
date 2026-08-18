@@ -350,6 +350,51 @@ select.field__control {
   margin-left: calc(1rem + var(--space-2));
 }
 
+/* ── List field ─────────────────────────────────────────── */
+
+.field--list .field__label {
+  margin-bottom: var(--space-2);
+}
+
+.list-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.list-field__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.list-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list-field__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.list-field__action {
+  min-width: 2rem;
+  padding-inline: var(--space-2);
+}
+
+.list-field__add {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+.field--list .field__hint,
+.field--list .field__error {
+  margin-top: var(--space-2);
+}
+
 /* ── Badge ──────────────────────────────────────────────── */
 
 .badge {
