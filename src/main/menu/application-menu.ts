@@ -124,7 +124,7 @@ function buildMenuTemplate(recentProjects: BotProject[]): MenuItemConstructorOpt
     { type: 'separator' },
     {
       id: 'bot-slack-settings',
-      label: 'Manage Slack Settings',
+      label: 'Manage Slack Connection Settings',
       enabled: false,
       click: () => {
         sendMenuAction({ type: 'bot:slack-settings' });

@@ -1,10 +1,12 @@
 import {
-  createButton,
   createInput,
   createModal,
   type ModalHandle,
 } from '../components/index.js';
-import type { SlackConnectionSummary } from '../../shared/domain/slack-config.js';
+import {
+  credentialFieldsFromConnection,
+  type SlackConnectionSummary,
+} from '../../shared/domain/slack-config.js';
 
 type CredentialField = 'botToken' | 'appToken' | 'signingSecret';
 
@@ -25,27 +27,6 @@ function getSlackConnectionErrorMessage(error: unknown): string {
 function createInstructions(): HTMLElement {
   const instructions = document.createElement('div');
   instructions.className = 'slack-connection-modal__instructions';
-
-  const intro = document.createElement('p');
-  intro.className = 'slack-connection-modal__intro';
-  intro.textContent =
-    'Connect this bot to a Slack app using Socket Mode. Credentials are stored locally inside this project folder and are never sent anywhere except Slack when verifying the connection.';
-  instructions.appendChild(intro);
-
-  const steps = document.createElement('ol');
-  steps.className = 'slack-connection-modal__steps';
-
-  const stepItems = [
-    'Create or open a Slack app at api.slack.com/apps.',
-  ];
-
-  for (const step of stepItems) {
-    const item = document.createElement('li');
-    item.textContent = step;
-    steps.appendChild(item);
-  }
-
-  instructions.appendChild(steps);
 
   const link = document.createElement('a');
   link.className = 'slack-connection-modal__link';
@@ -118,7 +99,6 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
   };
   let fieldErrors: Partial<Record<CredentialField, string>> = {};
   let isSubmitting = false;
-  let isDisconnecting = false;
 
   const content = document.createElement('div');
   content.className = 'slack-connection-modal';
@@ -148,7 +128,7 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
         placeholder: 'xoxb-...',
         hint: fieldErrors.botToken ? undefined : 'From OAuth & Permissions after installing the app.',
         error: fieldErrors.botToken,
-        disabled: isSubmitting || isDisconnecting,
+        disabled: isSubmitting,
         onInput: (value) => {
           fieldValues = { ...fieldValues, botToken: value };
           if (fieldErrors.botToken) {
@@ -167,7 +147,7 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
           ? undefined
           : 'From Socket Mode with the connections:write scope.',
         error: fieldErrors.appToken,
-        disabled: isSubmitting || isDisconnecting,
+        disabled: isSubmitting,
         onInput: (value) => {
           fieldValues = { ...fieldValues, appToken: value };
           if (fieldErrors.appToken) {
@@ -184,7 +164,7 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
         placeholder: 'From Basic Information',
         hint: fieldErrors.signingSecret ? undefined : 'Used to verify requests from Slack.',
         error: fieldErrors.signingSecret,
-        disabled: isSubmitting || isDisconnecting,
+        disabled: isSubmitting,
         onInput: (value) => {
           fieldValues = { ...fieldValues, signingSecret: value };
           if (fieldErrors.signingSecret) {
@@ -201,12 +181,9 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
     formErrorEl.textContent = message ?? '';
   }
 
-  function resetFormState(): void {
-    fieldValues = {
-      botToken: '',
-      appToken: '',
-      signingSecret: '',
-    };
+
+  function applyConnectionToFields(nextConnection: SlackConnectionSummary): void {
+    fieldValues = credentialFieldsFromConnection(nextConnection);
     fieldErrors = {};
     setFormError(undefined);
   }
@@ -215,49 +192,24 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
   renderFields();
 
   const modal = createModal({
-    title: 'Slack connection',
+    title: 'Slack Connection Settings',
     content,
     confirmLabel: 'Test & save',
     cancelLabel: 'Close',
-    closeOnBackdrop: !isSubmitting && !isDisconnecting,
+    closeOnBackdrop: !isSubmitting,
     onCancel: () => {
-      if (isSubmitting || isDisconnecting) {
+      if (isSubmitting) {
         return false;
       }
     },
     onConfirm: () => handleSave(),
   });
 
-  let disconnectButton: HTMLButtonElement | null = null;
 
-  const footer = modal.element.querySelector('.modal__footer');
 
-  if (footer) {
-    disconnectButton = createButton({
-      label: 'Disconnect',
-      variant: 'ghost',
-      size: 'sm',
-      onClick: () => {
-        void handleDisconnect();
-      },
-    });
-    disconnectButton.classList.add('slack-connection-modal__disconnect');
-    footer.insertBefore(disconnectButton, footer.firstChild);
-  }
-
-  function updateDisconnectButton(): void {
-    if (!disconnectButton) {
-      return;
-    }
-
-    disconnectButton.hidden = !connection.configured;
-    disconnectButton.disabled = isSubmitting || isDisconnecting;
-  }
-
-  updateDisconnectButton();
 
   async function handleSave(): Promise<boolean> {
-    if (isSubmitting || isDisconnecting) {
+    if (isSubmitting) {
       return false;
     }
 
@@ -265,14 +217,13 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
     fieldErrors = {};
     setFormError(undefined);
     renderFields();
-    updateDisconnectButton();
 
     try {
       connection = await window.electronAPI.saveSlackConnection({
         projectId,
         credentials: fieldValues,
       });
-      resetFormState();
+      applyConnectionToFields(connection);
       renderStatus();
       renderFields();
       await onConnectionChanged(connection);
@@ -284,34 +235,9 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
     } finally {
       isSubmitting = false;
       renderFields();
-      updateDisconnectButton();
     }
   }
 
-  async function handleDisconnect(): Promise<void> {
-    if (isSubmitting || isDisconnecting || !connection.configured) {
-      return;
-    }
-
-    isDisconnecting = true;
-    setFormError(undefined);
-    renderFields();
-    updateDisconnectButton();
-
-    try {
-      connection = await window.electronAPI.clearSlackConnection({ projectId });
-      resetFormState();
-      renderStatus();
-      renderFields();
-      await onConnectionChanged(connection);
-    } catch (error) {
-      setFormError(getSlackConnectionErrorMessage(error));
-    } finally {
-      isDisconnecting = false;
-      renderFields();
-      updateDisconnectButton();
-    }
-  }
 
   const originalOpen = modal.open.bind(modal);
 
@@ -320,10 +246,9 @@ export function createSlackConnectionModal(options: SlackConnectionModalOptions)
     open: () => {
       void (async () => {
         connection = await window.electronAPI.getSlackConnection({ projectId });
-        resetFormState();
+        applyConnectionToFields(connection);
         renderStatus();
         renderFields();
-        updateDisconnectButton();
         originalOpen();
         requestAnimationFrame(() => {
           fieldsHost.querySelector('input')?.focus();

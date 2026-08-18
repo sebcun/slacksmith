@@ -4,6 +4,7 @@ import path from 'path';
 import {
   createEmptySlackConnectionSummary,
   isValidSlackConfigFile,
+  mergeSlackCredentials,
   SLACK_CONFIG_FILE_NAME,
   SLACK_CONFIG_RELATIVE_DIR,
   toSlackConnectionSummary,
@@ -177,13 +178,17 @@ export async function saveSlackConnection(
   projectId: string,
   input: SlackCredentials,
 ): Promise<SlackConnectionSummary> {
-  const validation = validateSlackCredentials(input);
+  const projectPath = await resolveProjectPath(projectId);
+  const existingConfig = await readSlackConfigFile(projectPath);
+  const credentialsToValidate = existingConfig
+    ? mergeSlackCredentials(input, existingConfig)
+    : input;
+  const validation = validateSlackCredentials(credentialsToValidate);
 
   if (!validation.ok) {
     throw new SlackConnectionError('INVALID_CREDENTIALS', validation.message);
   }
 
-  const projectPath = await resolveProjectPath(projectId);
   const verification = await verifyBotToken(validation.credentials.botToken);
 
   const config: SlackConfigFile = {

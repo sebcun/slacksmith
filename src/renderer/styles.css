@@ -1045,6 +1045,86 @@ body {
   margin-right: auto;
 }
 
+/* ONBOARDING WIZARD */
+
+.onboarding-wizard-modal__dialog {
+  max-width: 480px;
+}
+
+.onboarding-wizard-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.onboarding-wizard-modal__description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: var(--line-height-relaxed);
+}
+
+.onboarding-wizard-modal__link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.onboarding-wizard-modal__link:hover {
+  text-decoration: underline;
+}
+
+.onboarding-wizard-modal__image {
+  width: 100%;
+  min-height: 160px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.onboarding-wizard-modal__image--placeholder {
+  border: 1px dashed var(--color-border);
+  background-color: var(--color-bg-subtle);
+}
+
+.onboarding-wizard-modal__image-media {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.onboarding-wizard-modal__footer {
+  justify-content: flex-end;
+}
+
+.onboarding-wizard-modal__status {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.onboarding-wizard-modal__status--success {
+  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  background-color: color-mix(in srgb, var(--color-success) 8%, var(--color-bg-subtle));
+}
+
+.onboarding-wizard-modal__status--error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+  background-color: color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-subtle));
+  color: var(--color-danger);
+}
+
+.onboarding-wizard-modal__status-title {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.onboarding-wizard-modal__status-details {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
 /* COMPONENTS SHOWCASE PAGE */
 
 .showcase-page {

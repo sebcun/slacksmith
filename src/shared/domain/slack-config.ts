@@ -85,6 +85,45 @@ export function createEmptySlackConnectionSummary(): SlackConnectionSummary {
   return { configured: false };
 }
 
+function resolveCredentialField(submitted: string, stored: string): string {
+  const trimmed = submitted.trim();
+
+  if (trimmed === maskSecret(stored)) {
+    return stored;
+  }
+
+  return trimmed;
+}
+
+export function mergeSlackCredentials(
+  input: SlackCredentials,
+  existing: SlackCredentials,
+): SlackCredentials {
+  return {
+    botToken: resolveCredentialField(input.botToken, existing.botToken),
+    appToken: resolveCredentialField(input.appToken, existing.appToken),
+    signingSecret: resolveCredentialField(input.signingSecret, existing.signingSecret),
+  };
+}
+
+export function credentialFieldsFromConnection(
+  connection: SlackConnectionSummary,
+): SlackCredentials {
+  if (!connection.configured) {
+    return {
+      botToken: '',
+      appToken: '',
+      signingSecret: '',
+    };
+  }
+
+  return {
+    botToken: connection.botTokenMasked ?? '',
+    appToken: connection.appTokenMasked ?? '',
+    signingSecret: connection.signingSecretMasked ?? '',
+  };
+}
+
 export function validateSlackCredentials(input: SlackCredentials): SlackCredentialValidation {
   const botToken = input.botToken.trim();
   const appToken = input.appToken.trim();

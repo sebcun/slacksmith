@@ -8,6 +8,7 @@ import {
   serializeComponentTemplate,
 } from '../editor/flow-canvas-engine.js';
 import { createNodeConfigForm } from '../editor/node-config-form.js';
+import { openOnboardingWizardModal } from './onboarding-wizard.js';
 import { openSlackConnectionModal } from './slack-connection-modal.js';
 import { reportAppState, setEditorMenuCallbacks } from '../menu-handler.js';
 import type { BotRuntimeStatus } from '../../shared/domain/bot-project.js';
@@ -840,21 +841,6 @@ export async function renderEditorPage(
       runtimeBadgeHost,
       runtimeControlsHost,
       createButton({
-        label: 'Slack setup',
-        variant: 'secondary',
-        size: 'sm',
-        onClick: () => {
-          openSlackConnectionModal({
-            projectId,
-            initialConnection: slackConnection,
-            onConnectionChanged: async (connection) => {
-              slackConnection = connection;
-              renderSlackBadge();
-            },
-          });
-        },
-      }),
-      createButton({
         label: 'Back to home',
         variant: 'secondary',
         size: 'sm',
@@ -870,4 +856,14 @@ export async function renderEditorPage(
   page.appendChild(workspace.element);
   page.appendChild(runtimeLogsPanel.element);
   container.appendChild(page);
+
+  if (!slackConnection.configured) {
+    openOnboardingWizardModal({
+      projectId,
+      onComplete: async (connection) => {
+        slackConnection = connection;
+        renderSlackBadge();
+      },
+    });
+  }
 }
