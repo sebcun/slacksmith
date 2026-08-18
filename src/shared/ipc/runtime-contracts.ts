@@ -12,6 +12,12 @@ export interface OpenBotRequest {
   id: string;
 }
 
+export interface RunBotIndependentlyRequest {
+  projectId: string;
+}
+
+export type RunBotIndependentlyResponse = { ok: true };
+
 export type GetRuntimeStateResponse = BotRuntimeState;
 
 export type OpenBotResponse = BotRuntimeState;
@@ -33,7 +39,8 @@ export type RuntimeErrorCode =
   | 'ALREADY_RUNNING'
   | 'NOT_RUNNING'
   | 'SLACK_NOT_CONFIGURED'
-  | 'START_FAILED';
+  | 'START_FAILED'
+  | 'INDEPENDENT_RUN_FAILED';
 
 export class BotRuntimeError extends Error {
   readonly code: RuntimeErrorCode;

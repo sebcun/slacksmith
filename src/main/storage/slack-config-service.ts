@@ -3,7 +3,6 @@ import path from 'path';
 
 import {
   createEmptySlackConnectionSummary,
-  isValidSlackConfigFile,
   mergeSlackCredentials,
   SLACK_CONFIG_FILE_NAME,
   SLACK_CONFIG_RELATIVE_DIR,
@@ -17,6 +16,9 @@ import {
   SlackConnectionError,
 } from '../../shared/ipc/slack-contracts';
 import { findProjectById } from './project-storage-service';
+import { loadSlackConfigFromPath } from './slack-config-path';
+
+export { loadSlackConfigFromPath } from './slack-config-path';
 
 interface SlackAuthTestResponse {
   ok: boolean;
@@ -40,24 +42,7 @@ function getSlackConfigPath(projectPath: string): string {
 }
 
 async function readSlackConfigFile(projectPath: string): Promise<SlackConfigFile | null> {
-  const configPath = getSlackConfigPath(projectPath);
-
-  if (!(await pathExists(configPath))) {
-    return null;
-  }
-
-  try {
-    const raw = await fs.readFile(configPath, 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!isValidSlackConfigFile(parsed)) {
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  return loadSlackConfigFromPath(projectPath);
 }
 
 async function writeSlackConfigFile(
@@ -160,7 +145,7 @@ async function verifyBotToken(botToken: string): Promise<{
 
 export async function loadSlackConfigForProject(projectId: string): Promise<SlackConfigFile | null> {
   const projectPath = await resolveProjectPath(projectId);
-  return readSlackConfigFile(projectPath);
+  return loadSlackConfigFromPath(projectPath);
 }
 
 export async function getSlackConnection(projectId: string): Promise<SlackConnectionSummary> {

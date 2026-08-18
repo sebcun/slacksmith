@@ -2,16 +2,17 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import {
-  createEmptyFlowGraph,
   FLOW_FILE_NAME,
   FLOW_RELATIVE_DIR,
   isValidFlowGraph,
-  parseFlowGraph,
   type FlowGraph,
 } from '../../shared/domain/flow-graph';
 import { PROJECT_FILE_NAME, type ProjectFile } from '../../shared/domain/project-file';
 import { FlowStorageError } from '../../shared/ipc/flow-contracts';
 import { findProjectById } from './project-storage-service';
+import { loadFlowGraphFromPath } from './flow-storage-path';
+
+export { loadFlowGraphFromPath } from './flow-storage-path';
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -68,29 +69,7 @@ export async function loadFlowGraph(projectId: string): Promise<FlowGraph> {
     throw new FlowStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
   }
 
-  const flowPath = getFlowFilePath(project.path);
-
-  if (!(await pathExists(flowPath))) {
-    return createEmptyFlowGraph();
-  }
-
-  try {
-    const raw = await fs.readFile(flowPath, 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-    const graph = parseFlowGraph(parsed);
-
-    if (!graph) {
-      throw new FlowStorageError('INVALID_GRAPH', 'Saved flow data is invalid or corrupted.');
-    }
-
-    return graph;
-  } catch (error) {
-    if (error instanceof FlowStorageError) {
-      throw error;
-    }
-
-    throw new FlowStorageError('IO_ERROR', 'Unable to read the saved flow.');
-  }
+  return loadFlowGraphFromPath(project.path);
 }
 
 export async function saveFlowGraph(projectId: string, graph: FlowGraph): Promise<FlowGraph> {

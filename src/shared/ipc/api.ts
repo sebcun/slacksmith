@@ -27,6 +27,8 @@ import type {
   OpenBotRequest,
   OpenBotResponse,
   RestartBotResponse,
+  RunBotIndependentlyRequest,
+  RunBotIndependentlyResponse,
   StartBotResponse,
   StopBotResponse,
 } from './runtime-contracts';
@@ -55,6 +57,9 @@ export interface ElectronAPI {
   startBot: () => Promise<StartBotResponse>;
   stopBot: () => Promise<StopBotResponse>;
   restartBot: () => Promise<RestartBotResponse>;
+  runBotIndependently: (
+    request: RunBotIndependentlyRequest,
+  ) => Promise<RunBotIndependentlyResponse>;
   getRuntimeLogs: () => Promise<GetRuntimeLogsResponse>;
   onRuntimeLogsUpdated: (callback: () => void) => () => void;
   getFlowGraph: (request: GetFlowGraphRequest) => Promise<GetFlowGraphResponse>;

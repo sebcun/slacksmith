@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   RUNTIME_START_BOT: 'runtime:start-bot',
   RUNTIME_STOP_BOT: 'runtime:stop-bot',
   RUNTIME_RESTART_BOT: 'runtime:restart-bot',
+  RUNTIME_RUN_INDEPENDENTLY: 'runtime:run-independently',
   RUNTIME_GET_LOGS: 'runtime:get-logs',
   RUNTIME_LOGS_UPDATED: 'runtime:logs-updated',
   FLOW_GET: 'flow:get',

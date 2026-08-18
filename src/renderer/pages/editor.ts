@@ -619,8 +619,33 @@ export async function renderEditorPage(
     void reportAppState();
   }
 
+  async function runIndependently(getGraph: () => FlowGraph): Promise<void> {
+    try {
+      await flushPendingSave(getGraph);
+      await window.electronAPI.runBotIndependently({ projectId });
+      runtimeErrorMessage = null;
+      renderRuntimeError();
+    } catch (error) {
+      console.error('Failed to run bot independently:', error);
+      runtimeErrorMessage = getRuntimeErrorMessage(error);
+      renderRuntimeError();
+      throw error;
+    }
+  }
+
   function renderRuntimeControls(getGraph: () => FlowGraph): void {
     runtimeControlsHost.replaceChildren();
+
+    runtimeControlsHost.appendChild(
+      createButton({
+        label: 'Run Independently',
+        variant: 'secondary',
+        size: 'sm',
+        onClick: () => {
+          void runIndependently(getGraph);
+        },
+      }),
+    );
 
     if (runtimeStatus === 'running' || runtimeStatus === 'paused' || runtimeStatus === 'error') {
       runtimeControlsHost.appendChild(
@@ -722,6 +747,9 @@ export async function renderEditorPage(
     },
     applyRuntimeState: (state) => {
       applyRuntimeState(state, workspace.getGraph);
+    },
+    runIndependently: async () => {
+      await runIndependently(workspace.getGraph);
     },
     getProjectId: () => projectId,
     onClose: closeEditor,

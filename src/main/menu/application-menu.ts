@@ -107,6 +107,14 @@ function buildMenuTemplate(recentProjects: BotProject[]): MenuItemConstructorOpt
       },
     },
     {
+      id: 'bot-run-independently',
+      label: 'Run Bot Independently',
+      enabled: false,
+      click: () => {
+        sendMenuAction({ type: 'bot:run-independently' });
+      },
+    },
+    {
       id: 'bot-stop',
       label: 'Stop Bot',
       enabled: false,
@@ -210,6 +218,7 @@ function updateBotMenuState(state: AppStateReport): void {
   setMenuItemEnabled('file-close', hasProject);
 
   setMenuItemEnabled('bot-run', hasProject && !isRunning);
+  setMenuItemEnabled('bot-run-independently', hasProject);
   setMenuItemEnabled('bot-stop', hasProject && isRunning);
   setMenuItemEnabled('bot-restart', hasProject && isRunning);
   setMenuItemEnabled('bot-open-logs', hasProject);

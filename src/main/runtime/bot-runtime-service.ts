@@ -11,6 +11,7 @@ import { GlobalVariableStore } from '../storage/global-variable-store';
 import { findProjectById } from '../storage/project-storage-service';
 import { loadSlackConfigForProject } from '../storage/slack-config-service';
 import { closeLogsWindow, sendLogsUpdated } from '../logs-window';
+import { syncProjectRuntimeFiles } from './project-runtime-sync';
 import { RuntimeLogger } from './runtime-logger';
 import { SlackSocketRuntime } from './slack-socket-runtime';
 
@@ -88,6 +89,12 @@ export async function openBot(projectId: string): Promise<BotRuntimeState> {
   lastError = null;
   activeLogger = new RuntimeLogger(project.path);
   attachLoggerNotifications(activeLogger);
+
+  try {
+    await syncProjectRuntimeFiles(project.path, project.name);
+  } catch {
+    // Runtime files are optional until the user runs the bot independently.
+  }
 
   return createRuntimeState();
 }

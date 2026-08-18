@@ -17,6 +17,7 @@ import {
   ProjectStorageError,
   type OpenProjectRequest,
 } from '../../shared/ipc/project-contracts';
+import { syncProjectRuntimeFiles } from '../runtime/project-runtime-sync';
 import {
   getProjectFolderName,
   getProjectRegistryPath,
@@ -302,6 +303,7 @@ export async function createProject(name: string): Promise<BotProject> {
     }
 
     await writeProjectFile(projectPath, projectFile);
+    await syncProjectRuntimeFiles(projectPath, validName);
   } catch {
     throw new ProjectStorageError('IO_ERROR', 'Unable to create the project on disk.');
   }
@@ -407,6 +409,7 @@ export async function duplicateProject(projectId: string, name: string): Promise
     };
 
     await writeProjectFile(projectPath, duplicatedProjectFile);
+    await syncProjectRuntimeFiles(projectPath, validName);
   } catch {
     await fs.rm(projectPath, { recursive: true, force: true }).catch(() => undefined);
     throw new ProjectStorageError('IO_ERROR', 'Unable to duplicate the project.');
@@ -479,6 +482,7 @@ export async function saveProjectAs(projectId: string): Promise<BotProject | nul
     };
 
     await writeProjectFile(destinationPath, savedProjectFile);
+    await syncProjectRuntimeFiles(destinationPath, sourceProject.name);
   } catch {
     await fs.rm(destinationPath, { recursive: true, force: true }).catch(() => undefined);
     throw new ProjectStorageError('IO_ERROR', 'Unable to save the project copy.');

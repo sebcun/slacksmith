@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
-import type { OpenBotRequest } from '../../shared/ipc/runtime-contracts';
+import type { OpenBotRequest, RunBotIndependentlyRequest } from '../../shared/ipc/runtime-contracts';
 import { BotRuntimeError } from '../../shared/ipc/runtime-contracts';
 import {
   closeBot,
@@ -12,6 +12,7 @@ import {
   startBot,
   stopBot,
 } from '../runtime/bot-runtime-service';
+import { runBotIndependently } from '../runtime/independent-run-service';
 
 function rethrowRuntimeError(error: unknown): never {
   if (error instanceof BotRuntimeError) {
@@ -69,4 +70,16 @@ export function registerRuntimeIpcHandlers(): void {
       rethrowRuntimeError(error);
     }
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.RUNTIME_RUN_INDEPENDENTLY,
+    async (_event, request: RunBotIndependentlyRequest) => {
+      try {
+        await runBotIndependently(request.projectId);
+        return { ok: true as const };
+      } catch (error) {
+        rethrowRuntimeError(error);
+      }
+    },
+  );
 }

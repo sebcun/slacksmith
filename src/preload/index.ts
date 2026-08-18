@@ -12,7 +12,7 @@ import type {
   RenameProjectRequest,
   SaveProjectAsRequest,
 } from '../shared/ipc/project-contracts';
-import type { OpenBotRequest } from '../shared/ipc/runtime-contracts';
+import type { OpenBotRequest, RunBotIndependentlyRequest } from '../shared/ipc/runtime-contracts';
 import type {
   ClearSlackConnectionRequest,
   GetSlackConnectionRequest,
@@ -35,6 +35,7 @@ const IPC_CHANNELS = {
   RUNTIME_START_BOT: 'runtime:start-bot',
   RUNTIME_STOP_BOT: 'runtime:stop-bot',
   RUNTIME_RESTART_BOT: 'runtime:restart-bot',
+  RUNTIME_RUN_INDEPENDENTLY: 'runtime:run-independently',
   RUNTIME_GET_LOGS: 'runtime:get-logs',
   RUNTIME_LOGS_UPDATED: 'runtime:logs-updated',
   FLOW_GET: 'flow:get',
@@ -68,6 +69,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_START_BOT),
   stopBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_STOP_BOT),
   restartBot: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_RESTART_BOT),
+  runBotIndependently: (request: RunBotIndependentlyRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_RUN_INDEPENDENTLY, request),
   getRuntimeLogs: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_GET_LOGS),
   onRuntimeLogsUpdated: (callback: () => void) => {
     const listener = () => {

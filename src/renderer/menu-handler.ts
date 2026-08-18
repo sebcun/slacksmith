@@ -5,6 +5,7 @@ export interface EditorMenuCallbacks {
   flushSave: () => Promise<void>;
   openSlackSettings: () => void;
   applyRuntimeState: (state: { status: BotRuntimeStatus; lastError: string | null }) => void;
+  runIndependently: () => Promise<void>;
   getProjectId: () => string;
   onClose: () => Promise<void>;
 }
@@ -155,6 +156,20 @@ async function handleMenuAction(action: MenuAction): Promise<void> {
         console.error('Failed to run bot from menu:', error);
         const state = await window.electronAPI.getRuntimeState();
         editorCallbacks.applyRuntimeState(state);
+      }
+      await reportAppState();
+      break;
+    }
+
+    case 'bot:run-independently': {
+      if (!editorCallbacks) {
+        return;
+      }
+
+      try {
+        await editorCallbacks.runIndependently();
+      } catch (error) {
+        console.error('Failed to run bot independently from menu:', error);
       }
       await reportAppState();
       break;

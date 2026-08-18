@@ -7,6 +7,7 @@ export type MenuAction =
   | { type: 'file:save-as' }
   | { type: 'file:close' }
   | { type: 'bot:run' }
+  | { type: 'bot:run-independently' }
   | { type: 'bot:stop' }
   | { type: 'bot:restart' }
   | { type: 'bot:slack-settings' };
