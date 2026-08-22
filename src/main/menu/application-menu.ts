@@ -1,9 +1,17 @@
-import { app, Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, Menu, shell, type MenuItemConstructorOptions } from 'electron';
 
+import type { ThemeSummary } from '../../shared/domain/theme-colors';
 import type { AppStateReport } from '../../shared/ipc/menu-contracts';
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import type { BotProject } from '../../shared/ipc/project-contracts';
 import { listProjects } from '../storage/project-storage-service';
+import {
+  ensureDefaultThemes,
+  getActiveThemeId,
+  listThemes,
+  setActiveThemeId,
+} from '../storage/theme-service';
+import { getThemesRoot } from '../storage/theme-paths';
 import { openLogsWindow } from '../logs-window';
 import { getMainWindow } from '../window';
 
@@ -44,7 +52,69 @@ function buildRecentProjectsSubmenu(projects: BotProject[]): MenuItemConstructor
   }));
 }
 
-function buildMenuTemplate(recentProjects: BotProject[]): MenuItemConstructorOptions[] {
+function buildThemesSubmenu(
+  themes: ThemeSummary[],
+  activeThemeId: string,
+): MenuItemConstructorOptions[] {
+  if (themes.length === 0) {
+    return [
+      {
+        id: 'theme-list-placeholder',
+        label: 'No Themes',
+        enabled: false,
+      },
+    ];
+  }
+
+  return themes.map((theme) => ({
+    id: `theme-select-${theme.id}`,
+    label: theme.name,
+    type: 'radio',
+    checked: theme.id === activeThemeId,
+    click: () => {
+      void handleThemeSelect(theme.id);
+    },
+  }));
+}
+
+async function handleThemeSelect(themeId: string): Promise<void> {
+  await setActiveThemeId(themeId);
+  sendMenuAction({ type: 'theme:select', themeId });
+  await refreshApplicationMenu();
+}
+
+async function handleOpenThemeDirectory(): Promise<void> {
+  await ensureDefaultThemes();
+  await shell.openPath(getThemesRoot());
+  await refreshApplicationMenu();
+}
+
+function buildThemeSubmenu(
+  themes: ThemeSummary[],
+  activeThemeId: string,
+): MenuItemConstructorOptions[] {
+  return [
+    {
+      id: 'theme-themes',
+      label: 'Themes',
+      submenu: buildThemesSubmenu(themes, activeThemeId),
+    },
+    { type: 'separator' },
+    {
+      id: 'theme-open-directory',
+      label: 'Open Theme Directory',
+      click: () => {
+        void handleOpenThemeDirectory();
+      },
+    },
+  ];
+}
+
+function buildMenuTemplate(
+  recentProjects: BotProject[],
+  themes: ThemeSummary[],
+  activeThemeId: string,
+): MenuItemConstructorOptions[] {
   const isMac = process.platform === 'darwin';
 
   const fileSubmenu: MenuItemConstructorOptions[] = [
@@ -178,6 +248,10 @@ function buildMenuTemplate(recentProjects: BotProject[]): MenuItemConstructorOpt
       label: 'Bot',
       submenu: botSubmenu,
     },
+    {
+      label: 'Theme',
+      submenu: buildThemeSubmenu(themes, activeThemeId),
+    },
   );
 
   if (isMac) {
@@ -231,9 +305,17 @@ function setApplicationMenuFromTemplate(template: MenuItemConstructorOptions[]):
   updateBotMenuState(currentAppState);
 }
 
+export async function refreshApplicationMenu(): Promise<void> {
+  const [projects, themes, activeThemeId] = await Promise.all([
+    listProjects(),
+    listThemes(),
+    getActiveThemeId(),
+  ]);
+  setApplicationMenuFromTemplate(buildMenuTemplate(projects, themes, activeThemeId));
+}
+
 export async function refreshOpenRecentMenu(): Promise<void> {
-  const projects = await listProjects();
-  setApplicationMenuFromTemplate(buildMenuTemplate(projects));
+  await refreshApplicationMenu();
 }
 
 export function updateApplicationMenuState(state: AppStateReport): void {
@@ -242,7 +324,7 @@ export function updateApplicationMenuState(state: AppStateReport): void {
 }
 
 export function createApplicationMenu(): void {
-  void refreshOpenRecentMenu();
+  void refreshApplicationMenu();
 }
 
 export function getCurrentAppState(): AppStateReport {
@@ -250,5 +332,5 @@ export function getCurrentAppState(): AppStateReport {
 }
 
 export async function onProjectsChanged(): Promise<void> {
-  await refreshOpenRecentMenu();
+  await refreshApplicationMenu();
 }

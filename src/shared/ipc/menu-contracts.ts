@@ -10,7 +10,8 @@ export type MenuAction =
   | { type: 'bot:run-independently' }
   | { type: 'bot:stop' }
   | { type: 'bot:restart' }
-  | { type: 'bot:slack-settings' };
+  | { type: 'bot:slack-settings' }
+  | { type: 'theme:select'; themeId: string };
 
 export interface AppStateReport {
   page: AppPage;

@@ -24,6 +24,11 @@ export const IPC_CHANNELS = {
   MENU_ACTION: 'menu:action',
   APP_REPORT_STATE: 'app:report-state',
   MENU_REFRESH_RECENT: 'menu:refresh-recent',
+  THEMES_LIST: 'themes:list',
+  THEMES_GET_ACTIVE: 'themes:get-active',
+  THEMES_SET_ACTIVE: 'themes:set-active',
+  THEMES_GET_COLORS: 'themes:get-colors',
+  THEMES_GET_ACTIVE_COLORS: 'themes:get-active-colors',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

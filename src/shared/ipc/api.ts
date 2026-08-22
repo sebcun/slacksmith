@@ -41,6 +41,15 @@ import type {
   SaveSlackConnectionResponse,
 } from './slack-contracts';
 import type { AppStateReport, MenuAction } from './menu-contracts';
+import type {
+  GetActiveThemeColorsResponse,
+  GetActiveThemeResponse,
+  GetThemeColorsRequest,
+  GetThemeColorsResponse,
+  ListThemesResponse,
+  SetActiveThemeRequest,
+  SetActiveThemeResponse,
+} from './theme-contracts';
 
 export interface ElectronAPI {
   getAppInfo: () => Promise<GetAppInfoResponse>;
@@ -74,4 +83,9 @@ export interface ElectronAPI {
   onMenuAction: (callback: (action: MenuAction) => void) => () => void;
   reportAppState: (state: AppStateReport) => Promise<void>;
   refreshRecentProjectsMenu: () => Promise<void>;
+  listThemes: () => Promise<ListThemesResponse>;
+  getActiveTheme: () => Promise<GetActiveThemeResponse>;
+  setActiveTheme: (request: SetActiveThemeRequest) => Promise<SetActiveThemeResponse>;
+  getThemeColors: (request: GetThemeColorsRequest) => Promise<GetThemeColorsResponse>;
+  getActiveThemeColors: () => Promise<GetActiveThemeColorsResponse>;
 }

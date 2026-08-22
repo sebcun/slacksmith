@@ -19,6 +19,7 @@ import type {
   SaveSlackConnectionRequest,
 } from '../shared/ipc/slack-contracts';
 import type { AppStateReport, MenuAction } from '../shared/ipc/menu-contracts';
+import type { SetActiveThemeRequest } from '../shared/ipc/theme-contracts';
 
 const IPC_CHANNELS = {
   GET_APP_INFO: 'app:get-info',
@@ -46,6 +47,11 @@ const IPC_CHANNELS = {
   MENU_ACTION: 'menu:action',
   APP_REPORT_STATE: 'app:report-state',
   MENU_REFRESH_RECENT: 'menu:refresh-recent',
+  THEMES_LIST: 'themes:list',
+  THEMES_GET_ACTIVE: 'themes:get-active',
+  THEMES_SET_ACTIVE: 'themes:set-active',
+  THEMES_GET_COLORS: 'themes:get-colors',
+  THEMES_GET_ACTIVE_COLORS: 'themes:get-active-colors',
 } as const;
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -103,4 +109,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reportAppState: (state: AppStateReport) =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_REPORT_STATE, state),
   refreshRecentProjectsMenu: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_REFRESH_RECENT),
+  listThemes: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_LIST),
+  getActiveTheme: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_GET_ACTIVE),
+  setActiveTheme: (request: SetActiveThemeRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.THEMES_SET_ACTIVE, request),
+  getThemeColors: (request: { themeId: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.THEMES_GET_COLORS, request),
+  getActiveThemeColors: () => ipcRenderer.invoke(IPC_CHANNELS.THEMES_GET_ACTIVE_COLORS),
 });

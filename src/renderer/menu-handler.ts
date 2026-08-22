@@ -1,5 +1,6 @@
 import type { BotRuntimeStatus } from '../shared/domain/bot-project.js';
 import type { AppPage, MenuAction } from '../shared/ipc/menu-contracts.js';
+import { loadAndApplyTheme } from './theme/theme-manager.js';
 
 export interface EditorMenuCallbacks {
   flushSave: () => Promise<void>;
@@ -212,6 +213,15 @@ async function handleMenuAction(action: MenuAction): Promise<void> {
 
     case 'bot:slack-settings': {
       editorCallbacks?.openSlackSettings();
+      break;
+    }
+
+    case 'theme:select': {
+      try {
+        await loadAndApplyTheme(action.themeId);
+      } catch (error) {
+        console.error('Failed to apply theme from menu:', error);
+      }
       break;
     }
   }

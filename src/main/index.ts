@@ -7,6 +7,7 @@ import { registerMenuIpcHandlers } from './ipc/register-menu-handlers';
 import { registerProjectIpcHandlers } from './ipc/register-project-handlers';
 import { registerRuntimeIpcHandlers } from './ipc/register-runtime-handlers';
 import { registerSlackIpcHandlers } from './ipc/register-slack-handlers';
+import { registerThemeIpcHandlers } from './ipc/register-theme-handlers';
 import { createApplicationMenu } from './menu/application-menu';
 import { closeBot } from './runtime/bot-runtime-service';
 import { setMainWindow } from './window';
@@ -45,6 +46,7 @@ app.whenReady().then(() => {
   registerSlackIpcHandlers();
   registerFlowIpcHandlers();
   registerMenuIpcHandlers();
+  registerThemeIpcHandlers();
   createWindow();
   createApplicationMenu();
 
