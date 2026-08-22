@@ -154,7 +154,7 @@ function createDetailPlaceholder(): HTMLElement {
   const icon = document.createElement('div');
   icon.className = 'home-page__detail-placeholder-icon';
   icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '◇';
+  icon.textContent = '🤖';
   placeholder.appendChild(icon);
 
   const title = document.createElement('h2');

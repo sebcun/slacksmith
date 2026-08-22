@@ -636,17 +636,6 @@ export async function renderEditorPage(
   function renderRuntimeControls(getGraph: () => FlowGraph): void {
     runtimeControlsHost.replaceChildren();
 
-    runtimeControlsHost.appendChild(
-      createButton({
-        label: 'Run Independently',
-        variant: 'secondary',
-        size: 'sm',
-        onClick: () => {
-          void runIndependently(getGraph);
-        },
-      }),
-    );
-
     if (runtimeStatus === 'running' || runtimeStatus === 'paused' || runtimeStatus === 'error') {
       runtimeControlsHost.appendChild(
         createButton({
@@ -765,29 +754,6 @@ export async function renderEditorPage(
       slackBadgeHost,
       runtimeBadgeHost,
       runtimeControlsHost,
-      createButton({
-        label: 'Slack setup',
-        variant: 'secondary',
-        size: 'sm',
-        onClick: () => {
-          openSlackConnectionModal({
-            projectId,
-            initialConnection: slackConnection,
-            onConnectionChanged: async (connection) => {
-              slackConnection = connection;
-              renderSlackBadge();
-            },
-          });
-        },
-      }),
-      createButton({
-        label: 'Back to home',
-        variant: 'secondary',
-        size: 'sm',
-        onClick: () => {
-          void closeEditor();
-        },
-      }),
     ],
   });
 

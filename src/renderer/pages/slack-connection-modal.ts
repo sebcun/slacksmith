@@ -32,7 +32,7 @@ function createInstructions(): HTMLElement {
   const intro = document.createElement('p');
   intro.className = 'slack-connection-modal__intro';
   intro.textContent =
-    'Connect this bot to a Slack app using Socket Mode. Credentials are stored locally inside this project folder and are never sent anywhere except Slack when verifying the connection.';
+    '';
   instructions.appendChild(intro);
 
   const steps = document.createElement('ol');
