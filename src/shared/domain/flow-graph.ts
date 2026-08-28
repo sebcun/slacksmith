@@ -27,15 +27,139 @@ export interface FlowGraph {
   edges: FlowEdge[];
 }
 
+export interface FlowCanvas {
+  id: string;
+  name: string;
+  graph: FlowGraph;
+}
+
+export interface ProjectCanvases {
+  version: 2;
+  activeCanvasId: string;
+  canvases: FlowCanvas[];
+}
+
 export interface FlowNodeTemplate {
   typeId: string;
 }
 
 export const FLOW_FILE_NAME = 'flow.json';
 export const FLOW_RELATIVE_DIR = 'data';
+export const MAX_PROJECT_CANVASES = 20;
+export const DEFAULT_MAIN_CANVAS_NAME = 'Main';
 
 export function createEmptyFlowGraph(): FlowGraph {
   return { nodes: [], edges: [] };
+}
+
+export function createFlowCanvas(name: string): FlowCanvas {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    graph: createEmptyFlowGraph(),
+  };
+}
+
+export function createEmptyProjectCanvases(): ProjectCanvases {
+  const mainCanvas = createFlowCanvas(DEFAULT_MAIN_CANVAS_NAME);
+
+  return {
+    version: 2,
+    activeCanvasId: mainCanvas.id,
+    canvases: [mainCanvas],
+  };
+}
+
+export function generateDefaultCanvasName(canvases: FlowCanvas[]): string {
+  const existingNames = new Set(canvases.map((canvas) => canvas.name.toLowerCase()));
+
+  if (!existingNames.has(DEFAULT_MAIN_CANVAS_NAME.toLowerCase())) {
+    return DEFAULT_MAIN_CANVAS_NAME;
+  }
+
+  for (let index = 2; index <= MAX_PROJECT_CANVASES + 1; index += 1) {
+    const candidate = `Canvas ${index}`;
+    if (!existingNames.has(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  return `Canvas ${canvases.length + 1}`;
+}
+
+export function ensureUniqueCanvasName(
+  name: string,
+  canvases: FlowCanvas[],
+  excludeCanvasId?: string,
+): string {
+  const trimmed = name.trim();
+  const baseName = trimmed.length > 0 ? trimmed : DEFAULT_MAIN_CANVAS_NAME;
+
+  const isTaken = (candidate: string): boolean =>
+    canvases.some(
+      (canvas) =>
+        canvas.id !== excludeCanvasId && canvas.name.toLowerCase() === candidate.toLowerCase(),
+    );
+
+  if (!isTaken(baseName)) {
+    return baseName;
+  }
+
+  for (let index = 2; index <= MAX_PROJECT_CANVASES + 1; index += 1) {
+    const candidate = `${baseName} ${index}`;
+    if (!isTaken(candidate)) {
+      return candidate;
+    }
+  }
+
+  return `${baseName} ${crypto.randomUUID().slice(0, 4)}`;
+}
+
+export function cloneFlowCanvas(canvas: FlowCanvas, name: string): FlowCanvas {
+  const nodeIdMap = new Map<string, string>();
+
+  const nodes = canvas.graph.nodes.map((node) => {
+    const newId = crypto.randomUUID();
+    nodeIdMap.set(node.id, newId);
+
+    return {
+      ...node,
+      id: newId,
+      position: { ...node.position },
+      config: { ...node.config },
+    };
+  });
+
+  const edges = canvas.graph.edges.map((edge) => ({
+    ...edge,
+    id: crypto.randomUUID(),
+    sourceNodeId: nodeIdMap.get(edge.sourceNodeId) ?? edge.sourceNodeId,
+    targetNodeId: nodeIdMap.get(edge.targetNodeId) ?? edge.targetNodeId,
+  }));
+
+  return {
+    id: crypto.randomUUID(),
+    name,
+    graph: { nodes, edges },
+  };
+}
+
+export function mergeCanvasGraphs(canvases: FlowCanvas[]): FlowGraph {
+  const nodes: FlowNode[] = [];
+  const edges: FlowEdge[] = [];
+
+  for (const canvas of canvases) {
+    nodes.push(
+      ...canvas.graph.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        config: { ...node.config },
+      })),
+    );
+    edges.push(...canvas.graph.edges.map((edge) => ({ ...edge })));
+  }
+
+  return { nodes, edges };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,14 +236,97 @@ export function parseFlowGraph(value: unknown): FlowGraph | null {
     return null;
   }
 
+  return cloneFlowGraph(migrated);
+}
+
+function cloneFlowGraph(graph: FlowGraph): FlowGraph {
   return {
-    nodes: migrated.nodes.map((node) => ({
+    nodes: graph.nodes.map((node) => ({
       ...node,
       position: { ...node.position },
       config: { ...node.config },
     })),
-    edges: migrated.edges.map((edge) => ({ ...edge })),
+    edges: graph.edges.map((edge) => ({ ...edge })),
   };
+}
+
+function isFlowCanvas(value: unknown): value is FlowCanvas {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.trim().length > 0 &&
+    isValidFlowGraph(value.graph)
+  );
+}
+
+export function isValidProjectCanvases(value: unknown): value is ProjectCanvases {
+  if (!isRecord(value) || value.version !== 2 || !Array.isArray(value.canvases)) {
+    return false;
+  }
+
+  if (
+    typeof value.activeCanvasId !== 'string' ||
+    value.activeCanvasId.length === 0 ||
+    value.canvases.length === 0 ||
+    value.canvases.length > MAX_PROJECT_CANVASES
+  ) {
+    return false;
+  }
+
+  if (!value.canvases.every(isFlowCanvas)) {
+    return false;
+  }
+
+  const canvasIds = new Set(value.canvases.map((canvas) => canvas.id));
+  const canvasNames = new Set<string>();
+
+  for (const canvas of value.canvases) {
+    const normalizedName = canvas.name.trim().toLowerCase();
+    if (canvasNames.has(normalizedName)) {
+      return false;
+    }
+    canvasNames.add(normalizedName);
+  }
+
+  return canvasIds.has(value.activeCanvasId);
+}
+
+function migrateLegacyFlowGraphToProjectCanvases(value: unknown): ProjectCanvases | null {
+  const migrated = migrateRawFlowGraph(value);
+
+  if (!isValidFlowGraph(migrated)) {
+    return null;
+  }
+
+  const mainCanvas = createFlowCanvas(DEFAULT_MAIN_CANVAS_NAME);
+  mainCanvas.graph = cloneFlowGraph(migrated);
+
+  return {
+    version: 2,
+    activeCanvasId: mainCanvas.id,
+    canvases: [mainCanvas],
+  };
+}
+
+export function parseProjectCanvases(value: unknown): ProjectCanvases | null {
+  if (isValidProjectCanvases(value)) {
+    return {
+      version: 2,
+      activeCanvasId: value.activeCanvasId,
+      canvases: value.canvases.map((canvas) => ({
+        id: canvas.id,
+        name: canvas.name.trim(),
+        graph: cloneFlowGraph(canvas.graph),
+      })),
+    };
+  }
+
+  return migrateLegacyFlowGraphToProjectCanvases(value);
 }
 
 function migrateRawFlowGraph(value: unknown): unknown {

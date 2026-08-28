@@ -1,17 +1,17 @@
-import type { FlowGraph } from '../domain/flow-graph';
+import type { ProjectCanvases } from '../domain/flow-graph';
 
-export interface GetFlowGraphRequest {
+export interface GetProjectCanvasesRequest {
   projectId: string;
 }
 
-export interface SaveFlowGraphRequest {
+export interface SaveProjectCanvasesRequest {
   projectId: string;
-  graph: FlowGraph;
+  canvases: ProjectCanvases;
 }
 
-export type GetFlowGraphResponse = FlowGraph;
+export type GetProjectCanvasesResponse = ProjectCanvases;
 
-export type SaveFlowGraphResponse = FlowGraph;
+export type SaveProjectCanvasesResponse = ProjectCanvases;
 
 export type FlowStorageErrorCode =
   | 'PROJECT_NOT_FOUND'

@@ -1,9 +1,9 @@
 import type { GetAppInfoResponse } from './contracts';
 import type {
-  GetFlowGraphRequest,
-  GetFlowGraphResponse,
-  SaveFlowGraphRequest,
-  SaveFlowGraphResponse,
+  GetProjectCanvasesRequest,
+  GetProjectCanvasesResponse,
+  SaveProjectCanvasesRequest,
+  SaveProjectCanvasesResponse,
 } from './flow-contracts';
 import type {
   CreateProjectRequest,
@@ -71,8 +71,12 @@ export interface ElectronAPI {
   ) => Promise<RunBotIndependentlyResponse>;
   getRuntimeLogs: () => Promise<GetRuntimeLogsResponse>;
   onRuntimeLogsUpdated: (callback: () => void) => () => void;
-  getFlowGraph: (request: GetFlowGraphRequest) => Promise<GetFlowGraphResponse>;
-  saveFlowGraph: (request: SaveFlowGraphRequest) => Promise<SaveFlowGraphResponse>;
+  getProjectCanvases: (
+    request: GetProjectCanvasesRequest,
+  ) => Promise<GetProjectCanvasesResponse>;
+  saveProjectCanvases: (
+    request: SaveProjectCanvasesRequest,
+  ) => Promise<SaveProjectCanvasesResponse>;
   getSlackConnection: (request: GetSlackConnectionRequest) => Promise<GetSlackConnectionResponse>;
   saveSlackConnection: (
     request: SaveSlackConnectionRequest,

@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import type {
-  GetFlowGraphRequest,
-  SaveFlowGraphRequest,
+  GetProjectCanvasesRequest,
+  SaveProjectCanvasesRequest,
 } from '../shared/ipc/flow-contracts';
 import type {
   CreateProjectRequest,
@@ -87,9 +87,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.RUNTIME_LOGS_UPDATED, listener);
     };
   },
-  getFlowGraph: (request: GetFlowGraphRequest) =>
+  getProjectCanvases: (request: GetProjectCanvasesRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.FLOW_GET, request),
-  saveFlowGraph: (request: SaveFlowGraphRequest) =>
+  saveProjectCanvases: (request: SaveProjectCanvasesRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.FLOW_SAVE, request),
   getSlackConnection: (request: GetSlackConnectionRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.SLACK_GET_CONNECTION, request),

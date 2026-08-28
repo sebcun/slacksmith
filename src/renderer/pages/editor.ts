@@ -7,6 +7,7 @@ import {
   FlowCanvasEngine,
   serializeComponentTemplate,
 } from '../editor/flow-canvas-engine.js';
+import { createCanvasTabBar, generateDefaultCanvasName } from '../editor/canvas-tab-bar.js';
 import { createNodeConfigForm } from '../editor/node-config-form.js';
 import { openOnboardingWizardModal } from './onboarding-wizard.js';
 import { openSlackConnectionModal } from './slack-connection-modal.js';
@@ -20,7 +21,14 @@ import {
   getComponentDefinitionsByCategory,
   type ComponentDefinition,
 } from '../../shared/domain/component-registry.js';
-import type { FlowGraph, FlowNode } from '../../shared/domain/flow-graph.js';
+import type { FlowGraph, FlowNode, ProjectCanvases } from '../../shared/domain/flow-graph.js';
+import {
+  cloneFlowCanvas,
+  createEmptyFlowGraph,
+  createFlowCanvas,
+  ensureUniqueCanvasName,
+  MAX_PROJECT_CANVASES,
+} from '../../shared/domain/flow-graph.js';
 
 const STATUS_BADGE: Record<
   BotRuntimeStatus,
@@ -399,9 +407,20 @@ interface EditorWorkspaceOptions {
   onGraphChange: (graph: FlowGraph) => void;
 }
 
+interface CanvasViewportState {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
 function createEditorWorkspace(options: EditorWorkspaceOptions): {
   element: HTMLElement;
   getGraph: () => FlowGraph;
+  loadCanvasGraph: (graph: FlowGraph) => void;
+  getViewport: () => CanvasViewportState;
+  setViewport: (viewport: CanvasViewportState) => void;
+  resetViewport: () => void;
+  canvasArea: HTMLElement;
 } {
   const workspace = document.createElement('div');
   workspace.className = 'editor-page__workspace';
@@ -453,6 +472,17 @@ function createEditorWorkspace(options: EditorWorkspaceOptions): {
   return {
     element: workspace,
     getGraph: () => canvasEngine.getGraph(),
+    loadCanvasGraph: (graph) => {
+      canvasEngine.loadGraph(graph);
+    },
+    getViewport: () => canvasEngine.getViewport(),
+    setViewport: (viewport) => {
+      canvasEngine.setViewport(viewport);
+    },
+    resetViewport: () => {
+      canvasEngine.resetView();
+    },
+    canvasArea,
   };
 }
 
@@ -504,10 +534,34 @@ export async function renderEditorPage(
   const projectId = activeProject.id;
   const projectName = activeProject.name;
 
-  const [slackConnectionResult, initialGraph] = await Promise.all([
+  const [slackConnectionResult, initialCanvases] = await Promise.all([
     window.electronAPI.getSlackConnection({ projectId }),
-    window.electronAPI.getFlowGraph({ projectId }),
+    window.electronAPI.getProjectCanvases({ projectId }),
   ]);
+
+  let projectCanvases: ProjectCanvases = initialCanvases;
+  const canvasViewports = new Map<string, CanvasViewportState>();
+
+  function getActiveCanvas() {
+    const active =
+      projectCanvases.canvases.find((canvas) => canvas.id === projectCanvases.activeCanvasId) ??
+      projectCanvases.canvases[0];
+
+    if (!active) {
+      throw new Error('Project has no canvases.');
+    }
+
+    return active;
+  }
+
+  function syncActiveCanvasGraph(getGraph: () => FlowGraph): void {
+    const activeCanvas = getActiveCanvas();
+    activeCanvas.graph = getGraph();
+  }
+
+  function updateTabBar(tabBar: ReturnType<typeof createCanvasTabBar>): void {
+    tabBar.update(projectCanvases.canvases, projectCanvases.activeCanvasId);
+  }
 
   let slackConnection = slackConnectionResult;
   let runtimeStatus = runtimeState.status;
@@ -556,14 +610,14 @@ export async function renderEditorPage(
     slackBadgeHost.replaceChildren(createSlackConnectionBadge(slackConnection));
   }
 
-  async function persistGraph(graph: FlowGraph): Promise<void> {
+  async function persistCanvases(canvases: ProjectCanvases): Promise<void> {
     saveState = 'saving';
     renderSaveBadge();
 
     try {
-      await window.electronAPI.saveFlowGraph({
+      await window.electronAPI.saveProjectCanvases({
         projectId,
-        graph,
+        canvases,
       });
       saveState = 'saved';
     } catch (error) {
@@ -574,17 +628,18 @@ export async function renderEditorPage(
     renderSaveBadge();
   }
 
-  function scheduleSave(graph: FlowGraph): void {
+  function scheduleSave(getGraph: () => FlowGraph): void {
     if (saveTimer !== null) {
       clearTimeout(saveTimer);
     }
 
+    syncActiveCanvasGraph(getGraph);
     saveState = 'saving';
     renderSaveBadge();
 
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      void persistGraph(graph);
+      void persistCanvases(projectCanvases);
     }, 500);
   }
 
@@ -592,7 +647,10 @@ export async function renderEditorPage(
     if (saveTimer !== null) {
       clearTimeout(saveTimer);
       saveTimer = null;
-      await persistGraph(getGraph());
+      syncActiveCanvasGraph(getGraph);
+      await persistCanvases(projectCanvases);
+    } else {
+      syncActiveCanvasGraph(getGraph);
     }
   }
 
@@ -702,10 +760,158 @@ export async function renderEditorPage(
     );
   }
 
+  const activeCanvas = getActiveCanvas();
+
   const workspace = createEditorWorkspace({
-    initialGraph,
-    onGraphChange: scheduleSave,
+    initialGraph: activeCanvas.graph,
+    onGraphChange: () => {
+      scheduleSave(workspace.getGraph);
+    },
   });
+
+  function switchCanvas(
+    canvasId: string,
+    tabBar: ReturnType<typeof createCanvasTabBar>,
+  ): void {
+    if (canvasId === projectCanvases.activeCanvasId) {
+      return;
+    }
+
+    const currentViewport = workspace.getViewport();
+    canvasViewports.set(projectCanvases.activeCanvasId, currentViewport);
+    syncActiveCanvasGraph(workspace.getGraph);
+
+    projectCanvases = {
+      ...projectCanvases,
+      activeCanvasId: canvasId,
+    };
+
+    const nextCanvas = getActiveCanvas();
+    workspace.loadCanvasGraph(nextCanvas.graph);
+
+    const savedViewport = canvasViewports.get(canvasId);
+    if (savedViewport) {
+      workspace.setViewport(savedViewport);
+    } else {
+      workspace.resetViewport();
+    }
+
+    updateTabBar(tabBar);
+    void persistCanvases(projectCanvases);
+  }
+
+  const tabBar = createCanvasTabBar({
+    canvases: projectCanvases.canvases,
+    activeCanvasId: projectCanvases.activeCanvasId,
+    onSelect: (canvasId) => {
+      switchCanvas(canvasId, tabBar);
+    },
+    onCreate: () => {
+      if (projectCanvases.canvases.length >= MAX_PROJECT_CANVASES) {
+        return;
+      }
+
+      syncActiveCanvasGraph(workspace.getGraph);
+
+      const name = generateDefaultCanvasName(projectCanvases.canvases);
+      const newCanvas = createFlowCanvas(name);
+
+      projectCanvases = {
+        ...projectCanvases,
+        activeCanvasId: newCanvas.id,
+        canvases: [...projectCanvases.canvases, newCanvas],
+      };
+
+      workspace.loadCanvasGraph(createEmptyFlowGraph());
+      workspace.resetViewport();
+      updateTabBar(tabBar);
+      void persistCanvases(projectCanvases);
+    },
+    onRename: (canvasId, name) => {
+      projectCanvases = {
+        ...projectCanvases,
+        canvases: projectCanvases.canvases.map((canvas) =>
+          canvas.id === canvasId ? { ...canvas, name } : canvas,
+        ),
+      };
+      updateTabBar(tabBar);
+      void persistCanvases(projectCanvases);
+    },
+    onDuplicate: (canvasId) => {
+      if (projectCanvases.canvases.length >= MAX_PROJECT_CANVASES) {
+        return;
+      }
+
+      syncActiveCanvasGraph(workspace.getGraph);
+
+      const source = projectCanvases.canvases.find((canvas) => canvas.id === canvasId);
+      if (!source) {
+        return;
+      }
+
+      const duplicateName = ensureUniqueCanvasName(
+        `${source.name} Copy`,
+        projectCanvases.canvases,
+      );
+      const duplicate = cloneFlowCanvas(source, duplicateName);
+
+      projectCanvases = {
+        ...projectCanvases,
+        activeCanvasId: duplicate.id,
+        canvases: [...projectCanvases.canvases, duplicate],
+      };
+
+      workspace.loadCanvasGraph(duplicate.graph);
+      workspace.resetViewport();
+      updateTabBar(tabBar);
+      void persistCanvases(projectCanvases);
+    },
+    onDelete: (canvasId) => {
+      if (projectCanvases.canvases.length <= 1) {
+        return;
+      }
+
+      syncActiveCanvasGraph(workspace.getGraph);
+
+      const index = projectCanvases.canvases.findIndex((canvas) => canvas.id === canvasId);
+      if (index === -1) {
+        return;
+      }
+
+      const remaining = projectCanvases.canvases.filter((canvas) => canvas.id !== canvasId);
+      canvasViewports.delete(canvasId);
+
+      const wasActive = canvasId === projectCanvases.activeCanvasId;
+      let nextActiveId = projectCanvases.activeCanvasId;
+
+      if (wasActive) {
+        const neighbour = remaining[Math.min(index, remaining.length - 1)] ?? remaining[0];
+        nextActiveId = neighbour?.id ?? remaining[0]!.id;
+      }
+
+      projectCanvases = {
+        ...projectCanvases,
+        activeCanvasId: nextActiveId,
+        canvases: remaining,
+      };
+
+      if (wasActive) {
+        const nextCanvas = getActiveCanvas();
+        workspace.loadCanvasGraph(nextCanvas.graph);
+        const savedViewport = canvasViewports.get(nextActiveId);
+        if (savedViewport) {
+          workspace.setViewport(savedViewport);
+        } else {
+          workspace.resetViewport();
+        }
+      }
+
+      updateTabBar(tabBar);
+      void persistCanvases(projectCanvases);
+    },
+  });
+
+  workspace.canvasArea.insertBefore(tabBar.element, workspace.canvasArea.firstChild);
 
   renderSaveBadge();
   renderRuntimeBadge();

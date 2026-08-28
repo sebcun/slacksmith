@@ -214,6 +214,31 @@ export class FlowCanvasEngine {
     this.applyViewport();
   }
 
+  getViewport(): ViewportState {
+    return {
+      x: this.viewport.x,
+      y: this.viewport.y,
+      zoom: this.viewport.zoom,
+    };
+  }
+
+  setViewport(viewport: ViewportState): void {
+    this.viewport = {
+      x: viewport.x,
+      y: viewport.y,
+      zoom: viewport.zoom,
+    };
+
+    const nearestIndex = ZOOM_LEVELS.reduce((bestIndex, level, index) => {
+      const currentDiff = Math.abs(level / 100 - viewport.zoom);
+      const bestDiff = Math.abs((ZOOM_LEVELS[bestIndex] ?? 100) / 100 - viewport.zoom);
+      return currentDiff < bestDiff ? index : bestIndex;
+    }, DEFAULT_ZOOM_INDEX);
+
+    this.zoomIndex = nearestIndex;
+    this.applyViewport();
+  }
+
   fitToScreen(): void {
     if (this.graph.nodes.length === 0) {
       this.resetView();

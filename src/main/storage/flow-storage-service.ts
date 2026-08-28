@@ -4,15 +4,17 @@ import path from 'path';
 import {
   FLOW_FILE_NAME,
   FLOW_RELATIVE_DIR,
-  isValidFlowGraph,
+  isValidProjectCanvases,
+  mergeCanvasGraphs,
   type FlowGraph,
+  type ProjectCanvases,
 } from '../../shared/domain/flow-graph';
 import { PROJECT_FILE_NAME, type ProjectFile } from '../../shared/domain/project-file';
 import { FlowStorageError } from '../../shared/ipc/flow-contracts';
 import { findProjectById } from './project-storage-service';
-import { loadFlowGraphFromPath } from './flow-storage-path';
+import { loadProjectCanvasesFromPath } from './flow-storage-path';
 
-export { loadFlowGraphFromPath } from './flow-storage-path';
+export { loadFlowGraphFromPath, loadProjectCanvasesFromPath } from './flow-storage-path';
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -58,28 +60,36 @@ async function touchProjectUpdatedAt(projectPath: string): Promise<void> {
       'utf8',
     );
   } catch {
-    // 
+    //
   }
+}
+
+export async function loadProjectCanvases(projectId: string): Promise<ProjectCanvases> {
+  const project = await findProjectById(projectId);
+
+  if (!project) {
+    throw new FlowStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
+  }
+
+  return loadProjectCanvasesFromPath(project.path);
 }
 
 export async function loadFlowGraph(projectId: string): Promise<FlowGraph> {
-  const project = await findProjectById(projectId);
-
-  if (!project) {
-    throw new FlowStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
-  }
-
-  return loadFlowGraphFromPath(project.path);
+  const canvases = await loadProjectCanvases(projectId);
+  return mergeCanvasGraphs(canvases.canvases);
 }
 
-export async function saveFlowGraph(projectId: string, graph: FlowGraph): Promise<FlowGraph> {
+export async function saveProjectCanvases(
+  projectId: string,
+  canvases: ProjectCanvases,
+): Promise<ProjectCanvases> {
   const project = await findProjectById(projectId);
 
   if (!project) {
     throw new FlowStorageError('PROJECT_NOT_FOUND', 'Project could not be found.');
   }
 
-  if (!isValidFlowGraph(graph)) {
+  if (!isValidProjectCanvases(canvases)) {
     throw new FlowStorageError('INVALID_GRAPH', 'Flow data is invalid.');
   }
 
@@ -88,11 +98,25 @@ export async function saveFlowGraph(projectId: string, graph: FlowGraph): Promis
 
   try {
     await fs.mkdir(flowDir, { recursive: true });
-    await fs.writeFile(flowPath, `${JSON.stringify(graph, null, 2)}\n`, 'utf8');
+    await fs.writeFile(flowPath, `${JSON.stringify(canvases, null, 2)}\n`, 'utf8');
     await touchProjectUpdatedAt(project.path);
   } catch {
     throw new FlowStorageError('IO_ERROR', 'Unable to save the flow.');
   }
 
+  return canvases;
+}
+
+/** @deprecated Use saveProjectCanvases instead. */
+export async function saveFlowGraph(projectId: string, graph: FlowGraph): Promise<FlowGraph> {
+  const existing = await loadProjectCanvases(projectId);
+  const activeCanvas = existing.canvases.find((canvas) => canvas.id === existing.activeCanvasId);
+
+  if (!activeCanvas) {
+    throw new FlowStorageError('INVALID_GRAPH', 'Active canvas could not be found.');
+  }
+
+  activeCanvas.graph = graph;
+  await saveProjectCanvases(projectId, existing);
   return graph;
 }
