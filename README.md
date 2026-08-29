@@ -2,6 +2,8 @@
 
 Desktop app for building Slack bots without writing code. You wire up triggers, conditions, and actions on a canvas, connect your Slack app, and run the bot from the editor.
 
+You can create bots, build them with drag and drop, run them independently, change themes, create themes, and more!
+
 Built with Electron and TypeScript.
 
 ## Requirements
@@ -43,3 +45,9 @@ You'll need a Slack app with at least:
 - The signing secret from your app's basic info page
 
 The in-app onboarding wizard walks through creating the app on api.slack.com and entering these values. Enable the event subscriptions and slash commands your flow actually uses.
+
+## AI Usage
+
+- Used claude web for debugging things I couldn't fix myself.
+- Used claude to create project json files for test runs.
+- Used claude for describing and some text on the app including how variables work
