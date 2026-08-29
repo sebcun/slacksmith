@@ -42,6 +42,27 @@ const STATUS_BADGE: Record<
 
 const ALL_CATEGORIES_ID = 'all';
 
+function normalizeComponentSearchQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+function matchesComponentSearch(definition: ComponentDefinition, query: string): boolean {
+  const normalizedQuery = normalizeComponentSearchQuery(query);
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const haystack = `${definition.name} ${definition.description}`.toLowerCase();
+  return haystack.includes(normalizedQuery);
+}
+
+function filterComponentsBySearch(
+  definitions: ComponentDefinition[],
+  query: string,
+): ComponentDefinition[] {
+  return definitions.filter((definition) => matchesComponentSearch(definition, query));
+}
+
 function createComponentLibraryItem(
   definition: ComponentDefinition,
   onAdd: (definition: ComponentDefinition) => void,
@@ -128,6 +149,7 @@ function createComponentLibraryPanel(
   listHost.className = 'component-library__list-host';
 
   let activeCategoryId = ALL_CATEGORIES_ID;
+  let searchQuery = '';
 
   const filterButtons: HTMLButtonElement[] = [];
 
@@ -166,13 +188,20 @@ function createComponentLibraryPanel(
 
   function renderComponentList(): void {
     listHost.replaceChildren();
+    const normalizedSearchQuery = normalizeComponentSearchQuery(searchQuery);
+    let hasResults = false;
 
     if (activeCategoryId === ALL_CATEGORIES_ID) {
       for (const category of COMPONENT_CATEGORIES) {
-        const components = getComponentDefinitionsByCategory(category.id);
+        const components = filterComponentsBySearch(
+          getComponentDefinitionsByCategory(category.id),
+          normalizedSearchQuery,
+        );
         if (components.length === 0) {
           continue;
         }
+
+        hasResults = true;
 
         const section = document.createElement('section');
         section.className = 'component-library__section';
@@ -187,12 +216,36 @@ function createComponentLibraryPanel(
         );
         listHost.appendChild(section);
       }
+
+      if (!hasResults) {
+        const empty = document.createElement('p');
+        empty.className = 'component-library__empty';
+        empty.textContent = normalizedSearchQuery
+          ? 'No components match your search.'
+          : 'No components in this category.';
+        listHost.appendChild(empty);
+      }
+
       return;
     }
 
-    const components = getComponentDefinitionsByCategory(
-      activeCategoryId as (typeof COMPONENT_CATEGORIES)[number]['id'],
+    const components = filterComponentsBySearch(
+      getComponentDefinitionsByCategory(
+        activeCategoryId as (typeof COMPONENT_CATEGORIES)[number]['id'],
+      ),
+      normalizedSearchQuery,
     );
+
+    if (components.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'component-library__empty';
+      empty.textContent = normalizedSearchQuery
+        ? 'No components match your search.'
+        : 'No components in this category.';
+      listHost.appendChild(empty);
+      return;
+    }
+
     listHost.appendChild(
       createComponentList(
         components,
@@ -202,7 +255,24 @@ function createComponentLibraryPanel(
     );
   }
 
+  const search = document.createElement('div');
+  search.className = 'component-library__search';
+
+  const searchInput = document.createElement('input');
+  searchInput.className = 'component-library__search-input';
+  searchInput.type = 'search';
+  searchInput.placeholder = 'Search components…';
+  searchInput.setAttribute('aria-label', 'Search components');
+  searchInput.autocomplete = 'off';
+  searchInput.spellcheck = false;
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    renderComponentList();
+  });
+  search.appendChild(searchInput);
+
   library.appendChild(filters);
+  library.appendChild(search);
   library.appendChild(listHost);
   panel.appendChild(library);
 

@@ -88,6 +88,98 @@ function getRequiredFieldError(field: ConfigFieldDefinition, value: unknown): st
   return undefined;
 }
 
+interface FieldValidationSyncOptions {
+  controlId?: string;
+  hint?: string;
+}
+
+function findFieldControls(wrapper: HTMLElement, controlId?: string): HTMLElement[] {
+  if (!controlId) {
+    return Array.from(wrapper.querySelectorAll<HTMLElement>('.field__control'));
+  }
+
+  const control = document.getElementById(controlId);
+  if (control instanceof HTMLElement && wrapper.contains(control)) {
+    return [control];
+  }
+
+  return [];
+}
+
+function syncRequiredFieldValidation(
+  wrapper: HTMLElement,
+  field: ConfigFieldDefinition,
+  value: unknown,
+  options: FieldValidationSyncOptions = {},
+): void {
+  const error = getRequiredFieldError(field, value);
+  const hintText = options.hint ?? field.description;
+
+  wrapper.classList.toggle('field--error', Boolean(error));
+
+  const controls = findFieldControls(wrapper, options.controlId);
+
+  for (const control of controls) {
+    if (error) {
+      control.setAttribute('aria-invalid', 'true');
+      if (options.controlId) {
+        control.setAttribute('aria-describedby', `${options.controlId}-error`);
+      }
+    } else {
+      control.removeAttribute('aria-invalid');
+      if (options.controlId && hintText) {
+        control.setAttribute('aria-describedby', `${options.controlId}-hint`);
+      } else {
+        control.removeAttribute('aria-describedby');
+      }
+    }
+  }
+
+  let errorEl = wrapper.querySelector<HTMLElement>('.field__error');
+  let hintEl = wrapper.querySelector<HTMLElement>('.field__hint');
+
+  if (error) {
+    if (hintEl) {
+      hintEl.remove();
+      hintEl = null;
+    }
+
+    if (!errorEl) {
+      errorEl = document.createElement('span');
+      errorEl.className = 'field__error';
+      if (options.controlId) {
+        errorEl.id = `${options.controlId}-error`;
+      }
+      wrapper.appendChild(errorEl);
+    }
+
+    errorEl.textContent = error;
+    return;
+  }
+
+  if (errorEl) {
+    errorEl.remove();
+  }
+
+  if (hintText) {
+    if (!hintEl) {
+      hintEl = document.createElement('span');
+      hintEl.className = 'field__hint';
+      if (options.controlId) {
+        hintEl.id = `${options.controlId}-hint`;
+      }
+      wrapper.appendChild(hintEl);
+    }
+
+    hintEl.textContent = hintText;
+    return;
+  }
+
+  if (hintEl) {
+    hintEl.remove();
+  }
+}
+
 function normalizeListValues(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [''];
@@ -108,13 +200,9 @@ function createListFieldControl(
 ): HTMLElement {
   const fieldId = `${nodeId}-${field.id}`;
   let currentValues = normalizeListValues(getFieldValue(config, field));
-  const error = getRequiredFieldError(field, currentValues);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'field field--list';
-  if (error) {
-    wrapper.classList.add('field--error');
-  }
 
   const labelEl = document.createElement('label');
   labelEl.className = 'field__label';
@@ -128,7 +216,12 @@ function createListFieldControl(
   const updateValues = (nextValues: string[]): void => {
     currentValues = normalizeListValues(nextValues);
     onChange(field.id, currentValues);
+    syncRequiredFieldValidation(wrapper, field, currentValues);
     renderItems();
+  };
+
+  const syncValidation = (): void => {
+    syncRequiredFieldValidation(wrapper, field, currentValues);
   };
 
   const renderItems = (): void => {
@@ -149,6 +242,7 @@ function createListFieldControl(
         nextValues[index] = input.value;
         currentValues = nextValues;
         onChange(field.id, nextValues);
+        syncValidation();
       });
       row.appendChild(input);
 
@@ -230,17 +324,9 @@ function createListFieldControl(
   addButton.className = `${addButton.className} list-field__add`;
   wrapper.appendChild(addButton);
 
-  if (error) {
-    const errorEl = document.createElement('span');
-    errorEl.className = 'field__error';
-    errorEl.textContent = error;
-    wrapper.appendChild(errorEl);
-  } else if (field.description) {
-    const hintEl = document.createElement('span');
-    hintEl.className = 'field__hint';
-    hintEl.textContent = field.description;
-    wrapper.appendChild(hintEl);
-  }
+  syncRequiredFieldValidation(wrapper, field, currentValues, {
+    hint: field.description,
+  });
 
   return wrapper;
 }
@@ -253,13 +339,9 @@ function createHeaderListFieldControl(
 ): HTMLElement {
   const fieldId = `${nodeId}-${field.id}`;
   let currentValues = normalizeHttpHeaderList(getFieldValue(config, field));
-  const error = getRequiredFieldError(field, currentValues);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'field field--list field--header-list';
-  if (error) {
-    wrapper.classList.add('field--error');
-  }
 
   const labelEl = document.createElement('label');
   labelEl.className = 'field__label';
@@ -292,7 +374,12 @@ function createHeaderListFieldControl(
   const updateValues = (nextValues: HttpHeaderEntry[]): void => {
     currentValues = normalizeHttpHeaderList(nextValues);
     onChange(field.id, currentValues);
+    syncRequiredFieldValidation(wrapper, field, currentValues);
     renderItems();
+  };
+
+  const syncValidation = (): void => {
+    syncRequiredFieldValidation(wrapper, field, currentValues);
   };
 
   const renderItems = (): void => {
@@ -315,6 +402,7 @@ function createHeaderListFieldControl(
         );
         currentValues = nextValues;
         onChange(field.id, nextValues);
+        syncValidation();
       });
       row.appendChild(nameInput);
 
@@ -330,6 +418,7 @@ function createHeaderListFieldControl(
         );
         currentValues = nextValues;
         onChange(field.id, nextValues);
+        syncValidation();
       });
       row.appendChild(valueInput);
 
@@ -411,17 +500,9 @@ function createHeaderListFieldControl(
   addButton.className = `${addButton.className} list-field__add`;
   wrapper.appendChild(addButton);
 
-  if (error) {
-    const errorEl = document.createElement('span');
-    errorEl.className = 'field__error';
-    errorEl.textContent = error;
-    wrapper.appendChild(errorEl);
-  } else if (field.description) {
-    const hintEl = document.createElement('span');
-    hintEl.className = 'field__hint';
-    hintEl.textContent = field.description;
-    wrapper.appendChild(hintEl);
-  }
+  syncRequiredFieldValidation(wrapper, field, currentValues, {
+    hint: field.description,
+  });
 
   return wrapper;
 }
@@ -434,7 +515,6 @@ function createConfigFieldControl(
 ): HTMLElement {
   const fieldId = `${nodeId}-${field.id}`;
   const value = getFieldValue(config, field);
-  const error = getRequiredFieldError(field, value);
 
   switch (field.type) {
     case 'list':
@@ -443,24 +523,30 @@ function createConfigFieldControl(
     case 'header-list':
       return createHeaderListFieldControl(nodeId, field, config, onChange);
 
-    case 'text':
-      return createInput({
+    case 'text': {
+      let fieldEl: HTMLElement;
+      fieldEl = createInput({
         id: fieldId,
         label: field.label,
         value: String(value ?? ''),
-        hint: error ? undefined : field.description,
-        error,
         onInput: (nextValue) => {
           onChange(field.id, nextValue);
+          syncRequiredFieldValidation(fieldEl, field, nextValue, {
+            controlId: fieldId,
+            hint: field.description,
+          });
         },
       });
+      syncRequiredFieldValidation(fieldEl, field, value, {
+        controlId: fieldId,
+        hint: field.description,
+      });
+      return fieldEl;
+    }
 
     case 'textarea': {
       const fieldWrapper = document.createElement('div');
       fieldWrapper.className = 'field';
-      if (error) {
-        fieldWrapper.classList.add('field--error');
-      }
 
       const labelEl = document.createElement('label');
       labelEl.className = 'field__label';
@@ -475,68 +561,95 @@ function createConfigFieldControl(
       textarea.rows = 4;
       textarea.addEventListener('input', () => {
         onChange(field.id, textarea.value);
+        syncRequiredFieldValidation(fieldWrapper, field, textarea.value, {
+          controlId: fieldId,
+          hint: field.description,
+        });
       });
       fieldWrapper.appendChild(textarea);
 
-      if (error) {
-        const errorEl = document.createElement('span');
-        errorEl.className = 'field__error';
-        errorEl.textContent = error;
-        fieldWrapper.appendChild(errorEl);
-      } else if (field.description) {
-        const hintEl = document.createElement('span');
-        hintEl.className = 'field__hint';
-        hintEl.textContent = field.description;
-        fieldWrapper.appendChild(hintEl);
-      }
+      syncRequiredFieldValidation(fieldWrapper, field, value, {
+        controlId: fieldId,
+        hint: field.description,
+      });
 
       return fieldWrapper;
     }
 
-    case 'channel':
-      return createInput({
+    case 'channel': {
+      const channelHint = field.description ?? 'Leave empty for any channel.';
+      let fieldEl: HTMLElement;
+      fieldEl = createInput({
         id: fieldId,
         label: field.label,
         value: String(value ?? ''),
         placeholder: '#general or channel ID',
-        hint: error ? undefined : (field.description ?? 'Leave empty for any channel.'),
-        error,
         onInput: (nextValue) => {
           onChange(field.id, nextValue);
+          syncRequiredFieldValidation(fieldEl, field, nextValue, {
+            controlId: fieldId,
+            hint: channelHint,
+          });
         },
       });
+      syncRequiredFieldValidation(fieldEl, field, value, {
+        controlId: fieldId,
+        hint: channelHint,
+      });
+      return fieldEl;
+    }
 
-    case 'number':
-      return createInput({
+    case 'number': {
+      let fieldEl: HTMLElement;
+      fieldEl = createInput({
         id: fieldId,
         label: field.label,
         type: 'number',
         value: value === '' || value === undefined || value === null ? '' : String(value),
-        hint: error ? undefined : field.description,
-        error,
         onInput: (nextValue) => {
+          let nextConfigValue: unknown = nextValue;
           if (nextValue.trim() === '') {
-            onChange(field.id, '');
-            return;
+            nextConfigValue = '';
+          } else {
+            const parsed = Number(nextValue);
+            nextConfigValue = Number.isNaN(parsed) ? nextValue : parsed;
           }
 
-          const parsed = Number(nextValue);
-          onChange(field.id, Number.isNaN(parsed) ? nextValue : parsed);
+          onChange(field.id, nextConfigValue);
+          syncRequiredFieldValidation(fieldEl, field, nextConfigValue, {
+            controlId: fieldId,
+            hint: field.description,
+          });
         },
       });
+      syncRequiredFieldValidation(fieldEl, field, value, {
+        controlId: fieldId,
+        hint: field.description,
+      });
+      return fieldEl;
+    }
 
-    case 'select':
-      return createSelect({
+    case 'select': {
+      let fieldEl: HTMLElement;
+      fieldEl = createSelect({
         id: fieldId,
         label: field.label,
         value: String(value ?? ''),
         options: field.options ?? [],
-        hint: error ? undefined : field.description,
-        error,
         onChange: (nextValue) => {
           onChange(field.id, nextValue);
+          syncRequiredFieldValidation(fieldEl, field, nextValue, {
+            controlId: fieldId,
+            hint: field.description,
+          });
         },
       });
+      syncRequiredFieldValidation(fieldEl, field, value, {
+        controlId: fieldId,
+        hint: field.description,
+      });
+      return fieldEl;
+    }
 
     case 'boolean':
       return createCheckbox({
@@ -558,16 +671,26 @@ function createConfigFieldControl(
         },
       });
 
-    default:
-      return createInput({
+    default: {
+      let fieldEl: HTMLElement;
+      fieldEl = createInput({
         id: fieldId,
         label: field.label,
         value: String(value ?? ''),
-        hint: field.description,
         onInput: (nextValue) => {
           onChange(field.id, nextValue);
+          syncRequiredFieldValidation(fieldEl, field, nextValue, {
+            controlId: fieldId,
+            hint: field.description,
+          });
         },
       });
+      syncRequiredFieldValidation(fieldEl, field, value, {
+        controlId: fieldId,
+        hint: field.description,
+      });
+      return fieldEl;
+    }
   }
 }
 
