@@ -2,6 +2,11 @@ import type { WebClient } from '@slack/web-api';
 
 import { getComponentDefinition } from '../../shared/domain/component-registry';
 import {
+  buildSlackBlocksFromMessage,
+  getBlockKitFallbackText,
+  resolveBlockKitMessageFromConfig,
+} from '../../shared/domain/block-kit';
+import {
   resolveVariableReferences,
   setScopedVariable,
   type VariableScope,
@@ -10,6 +15,7 @@ import type { FlowEdge, FlowGraph, FlowNode } from '../../shared/domain/flow-gra
 import type { GlobalVariableStore } from '../storage/global-variable-store';
 import type { RuntimeLogger } from './runtime-logger';
 import { executeDataComponentHandler, resolveArrayValue, resolveConfigInteger, resolveConfigValue } from './data-component-handlers';
+import { executeHttpRequestHandler } from './http-request-handler';
 import type { FlowExecutionContext } from './flow-execution-context';
 import { createTriggerVariables, type SlackTriggerPayload } from './trigger-context';
 
@@ -274,6 +280,45 @@ async function executeNode(
         break;
       }
 
+      case 'action.send-block-kit-message': {
+        const configuredChannel = fieldValue('channel');
+        const configuredFallback = fieldValue('fallbackText');
+        const channel = await resolveSendMessageChannel(configuredChannel, context);
+        const blockKitMessage = resolveBlockKitMessageFromConfig(node.config);
+        const blocks = buildSlackBlocksFromMessage(blockKitMessage, (text) =>
+          resolveConfigString(text, scope),
+        );
+        const fallbackText =
+          configuredFallback.trim().length > 0
+            ? configuredFallback
+            : getBlockKitFallbackText(blockKitMessage);
+
+        const result = await context.slackClient.chat.postMessage({
+          channel,
+          text: resolveConfigString(fallbackText, scope),
+          blocks: blocks as never,
+        });
+
+        if (resolveConfigBoolean(node.config.storeMessage) && result.ts) {
+          context.variables.message = {
+            ts: result.ts,
+            channel: {
+              id: channel,
+              name: channel,
+            },
+          };
+        }
+
+        context.logger.info('execution', `Sent Block Kit message to ${channel}`, {
+          nodeId: node.id,
+          nodeName: node.name,
+          details: {
+            blockCount: blockKitMessage.blocks.length,
+          },
+        });
+        break;
+      }
+
       case 'action.reply': {
         const message = fieldValue('message');
         const alsoSendInChannel = resolveConfigBoolean(node.config.alsoSendInChannel);
@@ -532,6 +577,11 @@ async function executeNode(
       case 'data.array-sort':
       case 'data.array-random-item': {
         await executeDataComponentHandler(handlerId, node, context);
+        break;
+      }
+
+      case 'data.http-request': {
+        await executeHttpRequestHandler(node, context, scope);
         break;
       }
 

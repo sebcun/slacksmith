@@ -21,9 +21,22 @@ interface GenericSlackEvent {
   ts?: string;
 }
 
+interface BlockActionBody {
+  user?: { id?: string };
+  channel?: { id?: string };
+  message?: { ts?: string; text?: string };
+}
+
+interface BlockButtonAction {
+  type: string;
+  action_id?: string;
+  text?: { text?: string };
+}
+
 export class SlackSocketRuntime {
   private app: App | null = null;
   private readonly abortController = new AbortController();
+  private scheduledTimers: NodeJS.Timeout[] = [];
 
   constructor(
     private readonly slackConfig: SlackConfigFile,
@@ -67,6 +80,7 @@ export class SlackSocketRuntime {
 
   async stop(): Promise<void> {
     this.abortController.abort();
+    this.clearScheduledTimers();
 
     if (this.app) {
       try {
@@ -91,6 +105,8 @@ export class SlackSocketRuntime {
     const joinedTriggers = triggerNodes.filter((node) => node.typeId === 'user-joined-channel');
     const leftTriggers = triggerNodes.filter((node) => node.typeId === 'user-left-channel');
     const mentionTriggers = triggerNodes.filter((node) => node.typeId === 'app-mention');
+    const buttonTriggers = triggerNodes.filter((node) => node.typeId === 'button-clicked');
+    const scheduledTriggers = triggerNodes.filter((node) => node.typeId === 'scheduled');
 
     if (messageTriggers.length > 0) {
       this.app.message(async ({ message, client }) => {
@@ -246,6 +262,142 @@ export class SlackSocketRuntime {
         }
       });
     }
+
+    if (buttonTriggers.length > 0) {
+      this.app.action(/.+/, async ({ action, ack, body, client }) => {
+        await ack();
+
+        const buttonAction = action as BlockButtonAction;
+        if (buttonAction.type !== 'button' || !buttonAction.action_id) {
+          return;
+        }
+
+        const actionId = buttonAction.action_id;
+        const matchingTriggers = buttonTriggers.filter(
+          (triggerNode) => this.getButtonActionId(triggerNode) === actionId,
+        );
+
+        if (matchingTriggers.length === 0) {
+          return;
+        }
+
+        const actionBody = body as BlockActionBody;
+        const userId = actionBody.user?.id ?? '';
+        const channelId = actionBody.channel?.id ?? '';
+        const messageTs = actionBody.message?.ts;
+        const buttonLabel = buttonAction.text?.text ?? actionId;
+
+        this.logger.info('slack', `Button "${actionId}" clicked in ${channelId}`, {
+          details: { userId, actionId },
+        });
+
+        for (const triggerNode of matchingTriggers) {
+          await this.runFlow(
+            {
+              triggerNodeId: triggerNode.id,
+              type: 'button-clicked',
+              channelId,
+              userId,
+              text: actionBody.message?.text ?? '',
+              messageTs,
+              buttonActionId: actionId,
+              buttonLabel,
+            },
+            client,
+          );
+        }
+      });
+    }
+
+    if (scheduledTriggers.length > 0) {
+      for (const triggerNode of scheduledTriggers) {
+        this.registerScheduledTrigger(triggerNode);
+      }
+    }
+  }
+
+  private clearScheduledTimers(): void {
+    for (const timer of this.scheduledTimers) {
+      clearInterval(timer);
+    }
+
+    this.scheduledTimers = [];
+  }
+
+  private getButtonActionId(triggerNode: FlowNode): string {
+    const raw = triggerNode.config.actionId;
+    return typeof raw === 'string' ? raw.trim() : '';
+  }
+
+  private getScheduledIntervalMs(triggerNode: FlowNode): number {
+    const rawInterval = triggerNode.config.interval;
+    const intervalValue =
+      typeof rawInterval === 'number'
+        ? rawInterval
+        : Number(typeof rawInterval === 'string' ? rawInterval.trim() : rawInterval);
+
+    if (!Number.isFinite(intervalValue) || intervalValue <= 0) {
+      throw new Error(`Scheduled trigger "${triggerNode.name}" needs an interval greater than 0.`);
+    }
+
+    const unit = typeof triggerNode.config.unit === 'string' ? triggerNode.config.unit : 'minutes';
+
+    switch (unit) {
+      case 'seconds':
+        return Math.max(1000, Math.round(intervalValue * 1000));
+      case 'hours':
+        return Math.max(1000, Math.round(intervalValue * 60 * 60 * 1000));
+      case 'minutes':
+      default:
+        return Math.max(1000, Math.round(intervalValue * 60 * 1000));
+    }
+  }
+
+  private registerScheduledTrigger(triggerNode: FlowNode): void {
+    if (!this.app) {
+      return;
+    }
+
+    let intervalMs: number;
+
+    try {
+      intervalMs = this.getScheduledIntervalMs(triggerNode);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Invalid scheduled trigger configuration.';
+      this.logger.warn('runtime', message, {
+        nodeId: triggerNode.id,
+        nodeName: triggerNode.name,
+      });
+      return;
+    }
+
+    this.logger.info('runtime', `Scheduled trigger "${triggerNode.name}" every ${intervalMs}ms`, {
+      nodeId: triggerNode.id,
+      nodeName: triggerNode.name,
+    });
+
+    const timer = setInterval(() => {
+      if (this.abortController.signal.aborted || !this.app) {
+        return;
+      }
+
+      const scheduledAt = new Date().toISOString();
+
+      void this.runFlow(
+        {
+          triggerNodeId: triggerNode.id,
+          type: 'scheduled',
+          channelId: '',
+          userId: '',
+          text: '',
+          scheduledAt,
+        },
+        this.app.client,
+      );
+    }, intervalMs);
+
+    this.scheduledTimers.push(timer);
   }
 
   private getSlashCommandName(triggerNode: FlowNode): string {

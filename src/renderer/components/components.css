@@ -311,6 +311,12 @@
   box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.25);
 }
 
+.field__control--textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 select.field__control {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6560' d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
@@ -388,6 +394,34 @@ select.field__control {
 .list-field__add {
   align-self: flex-start;
   margin-top: var(--space-2);
+}
+
+.header-list-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.header-list-field__columns,
+.header-list-field__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.header-list-field__column-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.header-list-field__actions-spacer {
+  width: 7.5rem;
+}
+
+.header-list-field__input {
+  min-width: 0;
 }
 
 .field--list .field__hint,

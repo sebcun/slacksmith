@@ -1,3 +1,9 @@
+import {
+  createDefaultBlockKitMessage,
+  getBlockKitMessageSummary,
+  resolveBlockKitMessageFromConfig,
+} from './block-kit.js';
+import type { HttpHeaderEntry } from './http-headers.js';
 import { appendVariableHint, createStoreAsField } from './variables.js';
 
 export const COMPONENT_CATEGORIES = [
@@ -19,7 +25,16 @@ export interface ComponentPortDefinition {
   direction: ComponentPortDirection;
 }
 
-export type ConfigFieldType = 'text' | 'number' | 'select' | 'channel' | 'boolean' | 'list';
+export type ConfigFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'select'
+  | 'channel'
+  | 'boolean'
+  | 'list'
+  | 'header-list'
+  | 'block-kit-message';
 
 export interface ConfigFieldOption {
   value: string;
@@ -32,7 +47,7 @@ export interface ConfigFieldDefinition {
   type: ConfigFieldType;
   description?: string;
   required?: boolean;
-  defaultValue?: string | number | boolean | string[];
+  defaultValue?: string | number | boolean | string[] | HttpHeaderEntry[];
   options?: ConfigFieldOption[];
   /** When true, field values may include ${variableName} references. */
   supportsVariables?: boolean;
@@ -255,6 +270,100 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     },
   },
   {
+    id: 'button-clicked',
+    categoryId: 'triggers',
+    name: 'Button clicked',
+    description: 'When someone clicks a button from a Block Kit message',
+    inputs: [],
+    outputs: [TRIGGER_OUTPUT],
+    fields: [
+      {
+        id: 'actionId',
+        label: 'Button action ID',
+        type: 'text',
+        description:
+          'Must match the action ID used in a Send Block Kit Message step (the part after the |).',
+        required: true,
+        defaultValue: '',
+      },
+      {
+        id: 'storeAuthor',
+        label: 'Store author',
+        type: 'boolean',
+        description: 'Save the user who clicked as ${author.id} and ${author.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeChannel',
+        label: 'Store channel',
+        type: 'boolean',
+        description: 'Save the channel as ${channel.id} and ${channel.name}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeButton',
+        label: 'Store button',
+        type: 'boolean',
+        description: 'Save the clicked button as ${button.actionId} and ${button.label}.',
+        defaultValue: true,
+      },
+      {
+        id: 'storeMessage',
+        label: 'Store message',
+        type: 'boolean',
+        description:
+          'Save the message the button belongs to as ${message.ts} and ${message.channel.id}.',
+        defaultValue: true,
+      },
+    ],
+    execution: {
+      handlerId: 'trigger.button-clicked',
+      isTrigger: true,
+    },
+  },
+  {
+    id: 'scheduled',
+    categoryId: 'triggers',
+    name: 'Scheduled',
+    description: 'Run on a repeating interval while the bot is running',
+    inputs: [],
+    outputs: [TRIGGER_OUTPUT],
+    fields: [
+      {
+        id: 'interval',
+        label: 'Every',
+        type: 'text',
+        description: appendVariableHint('How often to run this flow.'),
+        required: true,
+        defaultValue: '5',
+        supportsVariables: true,
+      },
+      {
+        id: 'unit',
+        label: 'Unit',
+        type: 'select',
+        required: true,
+        defaultValue: 'minutes',
+        options: [
+          { value: 'seconds', label: 'Seconds' },
+          { value: 'minutes', label: 'Minutes' },
+          { value: 'hours', label: 'Hours' },
+        ],
+      },
+      {
+        id: 'storeScheduledTime',
+        label: 'Store scheduled time',
+        type: 'boolean',
+        description: 'Save the run time as ${scheduled.time} (ISO) and ${scheduled.unix}.',
+        defaultValue: true,
+      },
+    ],
+    execution: {
+      handlerId: 'trigger.scheduled',
+      isTrigger: true,
+    },
+  },
+  {
     id: 'if-else',
     categoryId: 'conditions',
     name: 'If / else',
@@ -432,6 +541,53 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     execution: {
       handlerId: 'action.send-message',
+    },
+  },
+  {
+    id: 'send-block-kit-message',
+    categoryId: 'actions',
+    name: 'Send Block Kit message',
+    description: 'Post an interactive message with optional buttons',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'channel',
+        label: 'Channel',
+        type: 'channel',
+        description: appendVariableHint(
+          'Leave blank to send to the channel where the trigger occurred, or #general if unavailable.',
+        ),
+        supportsVariables: true,
+      },
+      {
+        id: 'blockKitMessage',
+        label: 'Message',
+        type: 'block-kit-message',
+        description:
+          'Build the Block Kit layout with headers, markdown, dividers, images, and buttons.',
+        required: true,
+      },
+      {
+        id: 'fallbackText',
+        label: 'Notification text',
+        type: 'text',
+        description: appendVariableHint(
+          'Plain-text fallback for notifications. Defaults to the message text when empty.',
+        ),
+        supportsVariables: true,
+      },
+      {
+        id: 'storeMessage',
+        label: 'Store sent message',
+        type: 'boolean',
+        description:
+          'Save the posted message as ${message.ts} and ${message.channel.id} for later edit or reply steps.',
+        defaultValue: false,
+      },
+    ],
+    execution: {
+      handlerId: 'action.send-block-kit-message',
     },
   },
   {
@@ -733,6 +889,71 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     execution: {
       handlerId: 'data.get-user',
+    },
+  },
+  {
+    id: 'http-request',
+    categoryId: 'data',
+    name: 'HTTP request',
+    description: 'Call a web API and store the response',
+    inputs: [FLOW_INPUT],
+    outputs: [FLOW_OUTPUT],
+    fields: [
+      {
+        id: 'method',
+        label: 'Method',
+        type: 'select',
+        required: true,
+        defaultValue: 'GET',
+        options: [
+          { value: 'GET', label: 'GET' },
+          { value: 'POST', label: 'POST' },
+          { value: 'PUT', label: 'PUT' },
+          { value: 'PATCH', label: 'PATCH' },
+          { value: 'DELETE', label: 'DELETE' },
+        ],
+      },
+      {
+        id: 'url',
+        label: 'URL',
+        type: 'text',
+        description: appendVariableHint('Full URL including https://'),
+        required: true,
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      {
+        id: 'headers',
+        label: 'Headers',
+        type: 'header-list',
+        description: appendVariableHint('Optional request headers.'),
+        defaultValue: [{ name: '', value: '' }],
+        supportsVariables: true,
+      },
+      {
+        id: 'body',
+        label: 'Request body',
+        type: 'textarea',
+        description: appendVariableHint(
+          'Optional JSON or text body. Used for POST, PUT, and PATCH requests.',
+        ),
+        defaultValue: '',
+        supportsVariables: true,
+      },
+      createStoreAsField(),
+      {
+        id: 'storeStatusAs',
+        label: 'Status variable',
+        type: 'text',
+        description: appendVariableHint(
+          'Optional variable name for the HTTP status code (e.g. statusCode).',
+        ),
+        defaultValue: '',
+        supportsVariables: true,
+      },
+    ],
+    execution: {
+      handlerId: 'data.http-request',
     },
   },
   {
@@ -1706,6 +1927,15 @@ export function createDefaultNodeConfig(typeId: string): Record<string, unknown>
     if (field.type === 'list') {
       config[field.id] = [''];
     }
+
+    if (field.type === 'header-list') {
+      config[field.id] = [{ name: '', value: '' }];
+    }
+
+    if (field.type === 'block-kit-message') {
+      config[field.id] = createDefaultBlockKitMessage();
+      continue;
+    }
   }
   return config;
 }
@@ -1714,6 +1944,8 @@ export function formatConfigFieldType(type: ConfigFieldType): string {
   switch (type) {
     case 'text':
       return 'Text';
+    case 'textarea':
+      return 'Text area';
     case 'number':
       return 'Number';
     case 'select':
@@ -1724,6 +1956,10 @@ export function formatConfigFieldType(type: ConfigFieldType): string {
       return 'Yes / no';
     case 'list':
       return 'List';
+    case 'header-list':
+      return 'Headers';
+    case 'block-kit-message':
+      return 'Block Kit message';
     default:
       return type;
   }
@@ -1837,6 +2073,34 @@ export function getNodeCanvasSubtitle(
     case 'date-time': {
       const format = truncateDisplayValue(String(config.format ?? ''));
       return format.length > 0 ? format : 'Current date/time';
+    }
+
+    case 'button-clicked': {
+      const actionId = truncateDisplayValue(String(config.actionId ?? ''));
+      return actionId.length > 0 ? actionId : 'Any button';
+    }
+
+    case 'scheduled': {
+      const interval = truncateDisplayValue(String(config.interval ?? ''));
+      const unitField = definition.fields.find((field) => field.id === 'unit');
+      const unitLabel = unitField
+        ? getSelectOptionLabel(unitField, config.unit) ?? 'Minutes'
+        : 'Minutes';
+      return interval.length > 0 ? `Every ${interval} ${unitLabel.toLowerCase()}` : 'Scheduled';
+    }
+
+    case 'send-block-kit-message': {
+      const message = resolveBlockKitMessageFromConfig(config);
+      return getBlockKitMessageSummary(message);
+    }
+
+    case 'http-request': {
+      const methodField = definition.fields.find((field) => field.id === 'method');
+      const methodLabel = methodField
+        ? getSelectOptionLabel(methodField, config.method) ?? 'GET'
+        : 'GET';
+      const url = truncateDisplayValue(String(config.url ?? ''));
+      return url.length > 0 ? `${methodLabel} ${url}` : methodLabel;
     }
 
     default:

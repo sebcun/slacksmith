@@ -7,7 +7,9 @@ export type SlackTriggerType =
   | 'slash-command'
   | 'user-joined-channel'
   | 'user-left-channel'
-  | 'app-mention';
+  | 'app-mention'
+  | 'button-clicked'
+  | 'scheduled';
 
 export interface SlackTriggerPayload {
   triggerNodeId: string;
@@ -18,6 +20,9 @@ export interface SlackTriggerPayload {
   messageTs?: string;
   command?: string;
   responseUrl?: string;
+  buttonActionId?: string;
+  buttonLabel?: string;
+  scheduledAt?: string;
 }
 
 export interface TriggerAuthorVariable {
@@ -182,6 +187,52 @@ export async function createTriggerVariables(
       }
 
       variables.message = message;
+    }
+  }
+
+  if (payload.type === 'button-clicked') {
+    const storeAuthor = resolveConfigBoolean(config.storeAuthor, true);
+    const storeChannel = resolveConfigBoolean(config.storeChannel, true);
+    const storeButton = resolveConfigBoolean(config.storeButton, true);
+    const storeMessage = resolveConfigBoolean(config.storeMessage, true);
+
+    if (storeAuthor && payload.userId.trim().length > 0) {
+      variables.author = await fetchUser(payload.userId, slackClient);
+    }
+
+    if (storeChannel && payload.channelId.trim().length > 0) {
+      variables.channel = await fetchChannel(payload.channelId, slackClient);
+    }
+
+    if (storeButton && payload.buttonActionId) {
+      variables.button = {
+        actionId: payload.buttonActionId,
+        label: payload.buttonLabel ?? payload.buttonActionId,
+      };
+    }
+
+    if (storeMessage && payload.messageTs && payload.channelId.trim().length > 0) {
+      const channel =
+        (variables.channel as TriggerChannelVariable | undefined) ??
+        (await fetchChannel(payload.channelId, slackClient));
+
+      variables.message = {
+        content: payload.text,
+        channel,
+        ts: payload.messageTs,
+      };
+    }
+  }
+
+  if (payload.type === 'scheduled') {
+    const storeScheduledTime = resolveConfigBoolean(config.storeScheduledTime, true);
+
+    if (storeScheduledTime && payload.scheduledAt) {
+      const scheduledDate = new Date(payload.scheduledAt);
+      variables.scheduled = {
+        time: payload.scheduledAt,
+        unix: Math.floor(scheduledDate.getTime() / 1000),
+      };
     }
   }
 
