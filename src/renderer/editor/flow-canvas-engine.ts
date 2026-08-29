@@ -1,9 +1,11 @@
 import {
+  cloneFlowNode,
   createEmptyFlowGraph,
   createFlowEdge,
   createFlowNode,
   type FlowGraph,
   type FlowNode,
+  type FlowNodePosition,
   type FlowNodeTemplate,
 } from '../../shared/domain/flow-graph.js';
 import {
@@ -36,6 +38,25 @@ interface PortPointerState {
   nodeId: string;
   portId: string;
   pointerId: number;
+  startX: number;
+  startY: number;
+}
+
+const CLICK_MOVE_THRESHOLD_PX = 5;
+const DUPLICATE_OFFSET_PX = 24;
+const MAX_UNDO_HISTORY = 50;
+
+interface HistoryEntry {
+  graph: FlowGraph;
+  selectedNodeId: string | null;
+}
+
+interface NodeClipboard {
+  typeId: string;
+  name: string;
+  categoryId: string;
+  config: Record<string, unknown>;
+  position: FlowNodePosition;
 }
 
 export class FlowCanvasEngine {
@@ -62,9 +83,19 @@ export class FlowCanvasEngine {
 
   private connectionDraft: PortPointerState | null = null;
   private connectionPreviewLine: SVGPathElement | null = null;
+  private inputPortDisconnectDraft: PortPointerState | null = null;
+
+  private clipboard: NodeClipboard | null = null;
+  private pasteCount = 0;
+  private undoStack: HistoryEntry[] = [];
+  private redoStack: HistoryEntry[] = [];
+  private dragStartSnapshot: HistoryEntry | null = null;
+  private configUndoPending = false;
+  private readonly handleDocumentKeyDown: (event: KeyboardEvent) => void;
 
   constructor(options: FlowCanvasEngineOptions = {}) {
     this.options = options;
+    this.handleDocumentKeyDown = (event) => this.handleKeyDown(event);
 
     this.root = document.createElement('div');
     this.root.className = 'flow-canvas';
@@ -95,6 +126,7 @@ export class FlowCanvasEngine {
     this.root.append(this.surface, this.emptyState);
 
     this.bindEvents();
+    document.addEventListener('keydown', this.handleDocumentKeyDown);
     this.applyViewport();
     this.syncEmptyState();
   }
@@ -114,6 +146,11 @@ export class FlowCanvasEngine {
   }
 
   loadGraph(graph: FlowGraph): void {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.clipboard = null;
+    this.pasteCount = 0;
+
     this.graph = {
       nodes: graph.nodes.map((node) => ({
         ...node,
@@ -126,6 +163,7 @@ export class FlowCanvasEngine {
     this.selectedNodeId = null;
     this.nodesLayer.replaceChildren();
     this.clearConnectionDraft();
+    this.inputPortDisconnectDraft = null;
 
     for (const node of this.graph.nodes) {
       if (getComponentDefinition(node.typeId)) {
@@ -155,6 +193,8 @@ export class FlowCanvasEngine {
       return null;
     }
 
+    this.pushHistory();
+
     const nodePosition = position ?? this.getViewportCenterPosition();
     const node = createFlowNode(template, nodePosition);
     this.graph.nodes.push(node);
@@ -171,6 +211,11 @@ export class FlowCanvasEngine {
       return;
     }
 
+    if (!this.configUndoPending) {
+      this.pushHistory();
+      this.configUndoPending = true;
+    }
+
     node.config[fieldId] = value;
     this.updateNodeDisplayInPlace(nodeId);
     this.notifyGraphChange();
@@ -180,6 +225,8 @@ export class FlowCanvasEngine {
     if (!this.selectedNodeId) {
       return;
     }
+
+    this.pushHistory();
 
     const nodeId = this.selectedNodeId;
     this.graph.nodes = this.graph.nodes.filter((node) => node.id !== nodeId);
@@ -265,6 +312,7 @@ export class FlowCanvasEngine {
   }
 
   destroy(): void {
+    document.removeEventListener('keydown', this.handleDocumentKeyDown);
     this.root.replaceChildren();
   }
 
@@ -274,7 +322,6 @@ export class FlowCanvasEngine {
     this.root.addEventListener('pointerup', (event) => this.handleRootPointerUp(event));
     this.root.addEventListener('pointercancel', (event) => this.handleRootPointerUp(event));
     this.root.addEventListener('wheel', (event) => this.handleWheel(event), { passive: false });
-    this.root.addEventListener('keydown', (event) => this.handleKeyDown(event));
 
     this.root.addEventListener('dragover', (event) => {
       event.preventDefault();
@@ -328,10 +375,35 @@ export class FlowCanvasEngine {
 
         event.preventDefault();
         event.stopPropagation();
-        this.connectionDraft = { nodeId, portId, pointerId: event.pointerId };
+        this.connectionDraft = {
+          nodeId,
+          portId,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+        };
         this.root.setPointerCapture(event.pointerId);
         this.ensureConnectionPreview();
         this.updateConnectionPreview(event.clientX, event.clientY);
+        return;
+      }
+
+      if (portType === 'input') {
+        const portId = port.getAttribute('data-port-id');
+        if (!portId) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.inputPortDisconnectDraft = {
+          nodeId,
+          portId,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+        };
+        this.root.setPointerCapture(event.pointerId);
       }
       return;
     }
@@ -349,6 +421,10 @@ export class FlowCanvasEngine {
       this.nodeDragPointerId = event.pointerId;
       this.nodeDragNodeId = nodeId;
       this.nodeDragStart = { x: event.clientX, y: event.clientY };
+      this.dragStartSnapshot = {
+        graph: this.getGraph(),
+        selectedNodeId: this.selectedNodeId,
+      };
       const node = this.graph.nodes.find((entry) => entry.id === nodeId);
       if (node) {
         this.nodeDragOrigin = { ...node.position };
@@ -393,12 +469,34 @@ export class FlowCanvasEngine {
   }
 
   private handleRootPointerUp(event: PointerEvent): void {
+    if (this.inputPortDisconnectDraft && event.pointerId === this.inputPortDisconnectDraft.pointerId) {
+      const moved = Math.hypot(
+        event.clientX - this.inputPortDisconnectDraft.startX,
+        event.clientY - this.inputPortDisconnectDraft.startY,
+      );
+
+      if (moved <= CLICK_MOVE_THRESHOLD_PX) {
+        this.removeIncomingEdges(
+          this.inputPortDisconnectDraft.nodeId,
+          this.inputPortDisconnectDraft.portId,
+        );
+      }
+
+      this.inputPortDisconnectDraft = null;
+      this.root.releasePointerCapture(event.pointerId);
+      return;
+    }
+
     if (this.connectionDraft && event.pointerId === this.connectionDraft.pointerId) {
       const target = document.elementFromPoint(event.clientX, event.clientY);
       const port = target instanceof Element ? target.closest('[data-port="input"]') : null;
       const nodeElement = port?.closest('[data-node-id]');
       const targetNodeId = nodeElement?.getAttribute('data-node-id') ?? null;
       const targetPortId = port?.getAttribute('data-port-id') ?? null;
+      const moved = Math.hypot(
+        event.clientX - this.connectionDraft.startX,
+        event.clientY - this.connectionDraft.startY,
+      );
 
       if (
         targetNodeId &&
@@ -411,6 +509,8 @@ export class FlowCanvasEngine {
           targetNodeId,
           targetPortId,
         );
+      } else if (moved <= CLICK_MOVE_THRESHOLD_PX) {
+        this.removeOutgoingEdges(this.connectionDraft.nodeId, this.connectionDraft.portId);
       }
 
       this.clearConnectionDraft();
@@ -419,6 +519,22 @@ export class FlowCanvasEngine {
     }
 
     if (this.nodeDragPointerId === event.pointerId) {
+      const nodeId = this.nodeDragNodeId;
+      const node = nodeId ? this.graph.nodes.find((entry) => entry.id === nodeId) : null;
+      const moved =
+        node !== undefined &&
+        node !== null &&
+        (node.position.x !== this.nodeDragOrigin.x || node.position.y !== this.nodeDragOrigin.y);
+
+      if (moved && this.dragStartSnapshot) {
+        this.undoStack.push(this.dragStartSnapshot);
+        if (this.undoStack.length > MAX_UNDO_HISTORY) {
+          this.undoStack.shift();
+        }
+        this.redoStack = [];
+      }
+
+      this.dragStartSnapshot = null;
       this.nodeDragPointerId = null;
       this.nodeDragNodeId = null;
       this.notifyGraphChange();
@@ -453,22 +569,223 @@ export class FlowCanvasEngine {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    if (event.key !== 'Delete' && event.key !== 'Backspace') {
+    if (!this.root.isConnected) {
       return;
     }
 
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLInputElement ||
-      active instanceof HTMLTextAreaElement ||
-      active instanceof HTMLSelectElement ||
-      (active instanceof HTMLElement && active.isContentEditable)
-    ) {
+    if (this.isEditableTarget(document.activeElement)) {
+      return;
+    }
+
+    const mod = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+
+    if (mod && key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      this.undo();
+      return;
+    }
+
+    if (mod && ((key === 'z' && event.shiftKey) || key === 'y')) {
+      event.preventDefault();
+      this.redo();
+      return;
+    }
+
+    if (mod && key === 'c') {
+      if (!this.selectedNodeId) {
+        return;
+      }
+      event.preventDefault();
+      this.copySelectedNode();
+      return;
+    }
+
+    if (mod && key === 'v') {
+      if (!this.clipboard) {
+        return;
+      }
+      event.preventDefault();
+      this.pasteNode();
+      return;
+    }
+
+    if (mod && key === 'd') {
+      if (!this.selectedNodeId) {
+        return;
+      }
+      event.preventDefault();
+      this.duplicateSelectedNode();
+      return;
+    }
+
+    if (event.key !== 'Delete' && event.key !== 'Backspace') {
       return;
     }
 
     event.preventDefault();
     this.deleteSelectedNode();
+  }
+
+  private copySelectedNode(): void {
+    const node = this.getSelectedNode();
+    if (!node) {
+      return;
+    }
+
+    this.clipboard = {
+      typeId: node.typeId,
+      name: node.name,
+      categoryId: node.categoryId,
+      config: { ...node.config },
+      position: { ...node.position },
+    };
+    this.pasteCount = 0;
+  }
+
+  private pasteNode(): void {
+    if (!this.clipboard || !getComponentDefinition(this.clipboard.typeId)) {
+      return;
+    }
+
+    this.pushHistory();
+    this.pasteCount += 1;
+    const offset = DUPLICATE_OFFSET_PX * this.pasteCount;
+
+    const node = cloneFlowNode(
+      {
+        id: '',
+        typeId: this.clipboard.typeId,
+        name: this.clipboard.name,
+        categoryId: this.clipboard.categoryId,
+        config: { ...this.clipboard.config },
+        position: {
+          x: this.clipboard.position.x + offset,
+          y: this.clipboard.position.y + offset,
+        },
+      },
+      {
+        x: this.clipboard.position.x + offset,
+        y: this.clipboard.position.y + offset,
+      },
+    );
+
+    this.graph.nodes.push(node);
+    this.renderNode(node);
+    this.selectNode(node.id);
+    this.syncEmptyState();
+    this.notifyGraphChange();
+  }
+
+  private duplicateSelectedNode(): void {
+    const node = this.getSelectedNode();
+    if (!node) {
+      return;
+    }
+
+    this.pushHistory();
+
+    const duplicate = cloneFlowNode(node, {
+      x: node.position.x + DUPLICATE_OFFSET_PX,
+      y: node.position.y + DUPLICATE_OFFSET_PX,
+    });
+
+    this.graph.nodes.push(duplicate);
+    this.renderNode(duplicate);
+    this.selectNode(duplicate.id);
+    this.syncEmptyState();
+    this.notifyGraphChange();
+  }
+
+  private undo(): void {
+    const entry = this.undoStack.pop();
+    if (!entry) {
+      return;
+    }
+
+    this.redoStack.push(this.createHistoryEntry());
+    this.restoreGraph(entry);
+  }
+
+  private redo(): void {
+    const entry = this.redoStack.pop();
+    if (!entry) {
+      return;
+    }
+
+    this.undoStack.push(this.createHistoryEntry());
+    this.restoreGraph(entry);
+  }
+
+  private pushHistory(): void {
+    this.undoStack.push(this.createHistoryEntry());
+    if (this.undoStack.length > MAX_UNDO_HISTORY) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+  }
+
+  private createHistoryEntry(): HistoryEntry {
+    return {
+      graph: this.getGraph(),
+      selectedNodeId: this.selectedNodeId,
+    };
+  }
+
+  private restoreGraph(entry: HistoryEntry): void {
+    this.graph = {
+      nodes: entry.graph.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        config: { ...node.config },
+      })),
+      edges: entry.graph.edges.map((edge) => ({ ...edge })),
+    };
+
+    this.selectedNodeId = entry.selectedNodeId;
+    this.configUndoPending = false;
+    this.nodesLayer.replaceChildren();
+    this.clearConnectionDraft();
+    this.inputPortDisconnectDraft = null;
+
+    for (const node of this.graph.nodes) {
+      if (getComponentDefinition(node.typeId)) {
+        this.renderNode(node);
+      }
+    }
+
+    this.renderEdges();
+    this.syncEmptyState();
+
+    for (const element of this.nodesLayer.querySelectorAll('[data-node-id]')) {
+      element.classList.toggle(
+        'flow-canvas__node--selected',
+        element.getAttribute('data-node-id') === this.selectedNodeId,
+      );
+    }
+
+    const node = this.selectedNodeId
+      ? (this.graph.nodes.find((entry) => entry.id === this.selectedNodeId) ?? null)
+      : null;
+    this.options.onSelectionChange?.(node);
+    this.notifyGraphChange();
+  }
+
+  private getSelectedNode(): FlowNode | null {
+    if (!this.selectedNodeId) {
+      return null;
+    }
+
+    return this.graph.nodes.find((entry) => entry.id === this.selectedNodeId) ?? null;
+  }
+
+  private isEditableTarget(element: Element | null): boolean {
+    return (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement ||
+      (element instanceof HTMLElement && element.isContentEditable)
+    );
   }
 
   private tryCreateEdge(
@@ -501,12 +818,47 @@ export class FlowCanvasEngine {
     }
 
     const edge = createFlowEdge(sourceNodeId, sourcePortId, targetNodeId, targetPortId);
+    this.pushHistory();
     this.graph.edges.push(edge);
     this.renderEdges();
     this.notifyGraphChange();
   }
 
+  private removeIncomingEdges(nodeId: string, portId: string): void {
+    const nextEdges = this.graph.edges.filter(
+      (edge) => !(edge.targetNodeId === nodeId && edge.targetPortId === portId),
+    );
+
+    if (nextEdges.length === this.graph.edges.length) {
+      return;
+    }
+
+    this.pushHistory();
+    this.graph.edges = nextEdges;
+    this.renderEdges();
+    this.notifyGraphChange();
+  }
+
+  private removeOutgoingEdges(nodeId: string, portId: string): void {
+    const nextEdges = this.graph.edges.filter(
+      (edge) => !(edge.sourceNodeId === nodeId && edge.sourcePortId === portId),
+    );
+
+    if (nextEdges.length === this.graph.edges.length) {
+      return;
+    }
+
+    this.pushHistory();
+    this.graph.edges = nextEdges;
+    this.renderEdges();
+    this.notifyGraphChange();
+  }
+
   private selectNode(nodeId: string | null): void {
+    if (nodeId !== this.selectedNodeId) {
+      this.configUndoPending = false;
+    }
+
     this.selectedNodeId = nodeId;
 
     for (const element of this.nodesLayer.querySelectorAll('[data-node-id]')) {
@@ -610,6 +962,7 @@ export class FlowCanvasEngine {
     portElement.className = `flow-canvas__port flow-canvas__port--${port.direction}`;
     portElement.dataset.port = port.direction;
     portElement.dataset.portId = port.id;
+    portElement.dataset.portLabel = port.label;
     portElement.setAttribute('aria-label', `${node.name} ${port.label} ${port.direction}`);
     portElement.title = port.label;
     portElement.tabIndex = -1;
@@ -684,6 +1037,40 @@ export class FlowCanvasEngine {
 
     if (this.connectionPreviewLine) {
       this.edgesLayer.append(this.connectionPreviewLine);
+    }
+
+    this.updatePortConnectionStates();
+  }
+
+  private updatePortConnectionStates(): void {
+    for (const portElement of this.nodesLayer.querySelectorAll<HTMLElement>('[data-port]')) {
+      const nodeElement = portElement.closest('[data-node-id]');
+      const nodeId = nodeElement?.getAttribute('data-node-id');
+      const portId = portElement.dataset.portId;
+      const direction = portElement.dataset.port;
+      const portLabel = portElement.dataset.portLabel ?? '';
+
+      if (!nodeId || !portId || !direction) {
+        continue;
+      }
+
+      const isConnected =
+        direction === 'input'
+          ? this.graph.edges.some(
+              (edge) => edge.targetNodeId === nodeId && edge.targetPortId === portId,
+            )
+          : this.graph.edges.some(
+              (edge) => edge.sourceNodeId === nodeId && edge.sourcePortId === portId,
+            );
+
+      portElement.classList.toggle('flow-canvas__port--connected', isConnected);
+
+      if (isConnected) {
+        portElement.title =
+          direction === 'input' ? 'Click to disconnect' : 'Click to disconnect, or drag to reconnect';
+      } else {
+        portElement.title = portLabel;
+      }
     }
   }
 

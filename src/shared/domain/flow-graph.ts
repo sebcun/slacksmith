@@ -425,3 +425,12 @@ export function createFlowEdge(
     targetPortId,
   };
 }
+
+export function cloneFlowNode(node: FlowNode, position?: FlowNodePosition): FlowNode {
+  return {
+    ...node,
+    id: crypto.randomUUID(),
+    position: position ?? { ...node.position },
+    config: { ...node.config },
+  };
+}

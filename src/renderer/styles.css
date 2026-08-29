@@ -886,6 +886,12 @@ body {
   transform: translate(50%, -50%) scale(1.1);
 }
 
+.flow-canvas__port--connected {
+  cursor: pointer;
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-subtle);
+}
+
 .flow-canvas__edge {
   fill: none;
   stroke: var(--color-border-strong);
