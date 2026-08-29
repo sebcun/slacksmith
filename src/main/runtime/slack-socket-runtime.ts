@@ -123,13 +123,6 @@ export class SlackSocketRuntime {
         const channelId = slackEvent.channel ?? '';
         const text = slackEvent.text ?? '';
 
-        this.logger.info('slack', `Message received in ${channelId}`, {
-          details: {
-            userId: slackEvent.user,
-            textPreview: text.length > 80 ? `${text.slice(0, 79)}…` : text,
-          },
-        });
-
         for (const triggerNode of messageTriggers) {
           await this.runFlow(
             {
@@ -184,10 +177,6 @@ export class SlackSocketRuntime {
           return;
         }
 
-        this.logger.info('slack', `User joined channel ${channelId}`, {
-          details: { userId },
-        });
-
         for (const triggerNode of joinedTriggers) {
           await this.runFlow(
             {
@@ -212,10 +201,6 @@ export class SlackSocketRuntime {
           return;
         }
 
-        this.logger.info('slack', `User left channel ${channelId}`, {
-          details: { userId },
-        });
-
         for (const triggerNode of leftTriggers) {
           await this.runFlow(
             {
@@ -239,13 +224,6 @@ export class SlackSocketRuntime {
 
         const channelId = event.channel ?? '';
         const text = event.text ?? '';
-
-        this.logger.info('slack', `App mentioned in ${channelId}`, {
-          details: {
-            userId: event.user,
-            textPreview: text.length > 80 ? `${text.slice(0, 79)}…` : text,
-          },
-        });
 
         for (const triggerNode of mentionTriggers) {
           await this.runFlow(
@@ -286,10 +264,6 @@ export class SlackSocketRuntime {
         const channelId = actionBody.channel?.id ?? '';
         const messageTs = actionBody.message?.ts;
         const buttonLabel = buttonAction.text?.text ?? actionId;
-
-        this.logger.info('slack', `Button "${actionId}" clicked in ${channelId}`, {
-          details: { userId, actionId },
-        });
 
         for (const triggerNode of matchingTriggers) {
           await this.runFlow(
@@ -371,11 +345,6 @@ export class SlackSocketRuntime {
       });
       return;
     }
-
-    this.logger.info('runtime', `Scheduled trigger "${triggerNode.name}" every ${intervalMs}ms`, {
-      nodeId: triggerNode.id,
-      nodeName: triggerNode.name,
-    });
 
     const timer = setInterval(() => {
       if (this.abortController.signal.aborted || !this.app) {

@@ -118,9 +118,4 @@ export async function executeHttpRequestHandler(
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
   }
-
-  context.logger.info('execution', `HTTP ${method} ${parsedUrl.host} returned ${response.status}`, {
-    nodeId: node.id,
-    nodeName: node.name,
-  });
 }

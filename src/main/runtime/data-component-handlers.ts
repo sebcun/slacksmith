@@ -650,10 +650,4 @@ export async function executeDataComponentHandler(
     default:
       throw new Error(`Unknown data handler: ${handlerId}`);
   }
-
-  context.logger.info('execution', `Stored result in ${fields.string('storeAs')}`, {
-    nodeId: node.id,
-    nodeName: node.name,
-    details: { handlerId },
-  });
 }

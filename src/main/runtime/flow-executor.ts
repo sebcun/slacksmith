@@ -255,12 +255,6 @@ async function executeNode(
     return resolveConfigString(node.config[fieldId], scope);
   }
 
-  context.logger.info('execution', `Running ${node.name}`, {
-    nodeId: node.id,
-    nodeName: node.name,
-    details: { handlerId },
-  });
-
   try {
     switch (handlerId) {
       case 'action.send-message': {
@@ -273,10 +267,6 @@ async function executeNode(
           text: message,
         });
 
-        context.logger.info('execution', `Sent message to ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -309,13 +299,6 @@ async function executeNode(
           };
         }
 
-        context.logger.info('execution', `Sent Block Kit message to ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-          details: {
-            blockCount: blockKitMessage.blocks.length,
-          },
-        });
         break;
       }
 
@@ -336,16 +319,6 @@ async function executeNode(
           reply_broadcast: alsoSendInChannel,
         });
 
-        context.logger.info(
-          'execution',
-          alsoSendInChannel
-            ? `Replied in thread and posted to ${channel}`
-            : `Replied in thread on ${channel}`,
-          {
-            nodeId: node.id,
-            nodeName: node.name,
-          },
-        );
         break;
       }
 
@@ -364,10 +337,6 @@ async function executeNode(
           name: normalizeEmojiName(emoji),
         });
 
-        context.logger.info('execution', `Added reaction :${emoji}:`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -382,10 +351,6 @@ async function executeNode(
           text: message,
         });
 
-        context.logger.info('execution', `Edited message in ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -398,10 +363,6 @@ async function executeNode(
           ts: timestamp,
         });
 
-        context.logger.info('execution', `Deleted message in ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -416,10 +377,6 @@ async function executeNode(
           text: message,
         });
 
-        context.logger.info('execution', `Sent ephemeral message to ${user} in ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -443,10 +400,6 @@ async function executeNode(
           text: message,
         });
 
-        context.logger.info('execution', `Sent DM to ${user}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -465,10 +418,6 @@ async function executeNode(
           name: normalizeEmojiName(emoji),
         });
 
-        context.logger.info('execution', `Removed reaction :${emoji}:`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -481,10 +430,6 @@ async function executeNode(
           topic,
         });
 
-        context.logger.info('execution', `Set topic for ${channel}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -501,10 +446,6 @@ async function executeNode(
           context.variables.channelId = result.channel.id;
         }
 
-        context.logger.info('execution', `Created channel ${channelName}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -526,10 +467,6 @@ async function executeNode(
           context.globalVariableStore.scheduleSave();
         }
 
-        context.logger.info('execution', `Stored user lookup in ${storeAs}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -546,10 +483,6 @@ async function executeNode(
           context.globalVariableStore.scheduleSave();
         }
 
-        context.logger.info('execution', `Stored variable ${variableName}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         break;
       }
 
@@ -591,11 +524,6 @@ async function executeNode(
         const itemVariable = fieldValue('itemVariable').trim() || 'item';
         const indexVariable = fieldValue('indexVariable').trim() || 'index';
 
-        context.logger.info('execution', `Looping over ${items.length} item(s)`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
-
         for (let index = 0; index < items.length; index += 1) {
           const itemTarget = setScopedVariable(scope, itemVariable, items[index]);
           const indexTarget = setScopedVariable(scope, indexVariable, index);
@@ -615,11 +543,6 @@ async function executeNode(
       case 'loop.repeat': {
         const count = resolveConfigInteger(node.config.count, scope, 'count', 0);
         const indexVariable = fieldValue('indexVariable').trim() || 'index';
-
-        context.logger.info('execution', `Repeating ${count} time(s)`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
 
         for (let index = 0; index < count; index += 1) {
           const indexTarget = setScopedVariable(scope, indexVariable, index);
@@ -650,10 +573,6 @@ async function executeNode(
           }
 
           iterations += 1;
-          context.logger.info('execution', `While loop iteration ${iterations}`, {
-            nodeId: node.id,
-            nodeName: node.name,
-          });
 
           await executeLoopBody(node, context);
 
@@ -678,11 +597,6 @@ async function executeNode(
         const rightValue = fieldValue('rightValue');
         const isTrue = compareValues(leftValue, operator, rightValue);
 
-        context.logger.info('execution', `Condition evaluated to ${isTrue ? 'true' : 'false'}`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
-
         return { outputPortId: isTrue ? 'true' : 'false', terminate: false };
       }
 
@@ -693,11 +607,6 @@ async function executeNode(
         if (!Number.isFinite(seconds)) {
           throw new Error(`Invalid delay value: ${secondsRaw}`);
         }
-
-        context.logger.info('execution', `Waiting ${seconds} second(s)`, {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
 
         await sleep(seconds, context.abortSignal);
         break;
@@ -716,10 +625,6 @@ async function executeNode(
       }
 
       case 'utility.stop-flow': {
-        context.logger.info('execution', 'Flow stopped', {
-          nodeId: node.id,
-          nodeName: node.name,
-        });
         return { outputPortId: null, terminate: true };
       }
 
@@ -750,16 +655,6 @@ export async function executeFlowFromTrigger(context: FlowExecutionContext): Pro
     });
     return;
   }
-
-  context.logger.info('trigger', `Flow started from ${triggerNode.name}`, {
-    nodeId: triggerNode.id,
-    nodeName: triggerNode.name,
-    details: {
-      triggerType: context.trigger.type,
-      channelId: context.trigger.channelId,
-      userId: context.trigger.userId,
-    },
-  });
 
   let currentNodeId = findNextNode(context.graph, triggerNode.id, 'out');
 
@@ -804,11 +699,6 @@ export async function executeFlowFromTrigger(context: FlowExecutionContext): Pro
 
     currentNodeId = findNextNode(context.graph, node.id, result.outputPortId);
   }
-
-  context.logger.info('execution', 'Flow finished.', {
-    nodeId: triggerNode.id,
-    nodeName: triggerNode.name,
-  });
 }
 
 export async function createFlowExecutionContext(
