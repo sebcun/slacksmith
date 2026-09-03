@@ -2,6 +2,7 @@
   "name": "SlackSmith",
   "version": "0.1.0",
   "description": "Build a Slack bot with no code",
+  "author": "sebcun",
   "main": "dist/main/index.js",
   "scripts": {
     "build": "npm run build:main && npm run build:standalone && npm run build:preload && npm run build:renderer",
@@ -12,6 +13,9 @@
     "build:renderer": "tsc -p tsconfig.renderer.json && node -e \"const fs=require('fs');const path=require('path');const out='dist/renderer';fs.mkdirSync(out,{recursive:true});fs.mkdirSync(path.join(out,'design'),{recursive:true});fs.mkdirSync(path.join(out,'components'),{recursive:true});fs.copyFileSync('src/renderer/index.html',path.join(out,'index.html'));fs.copyFileSync('src/renderer/styles.css',path.join(out,'styles.css'));fs.copyFileSync('src/renderer/design/tokens.css',path.join(out,'design/tokens.css'));fs.copyFileSync('src/renderer/components/components.css',path.join(out,'components/components.css'));\"",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
     "typecheck": "npm run typecheck:main && npm run typecheck:preload && npm run typecheck:renderer",
     "typecheck:main": "tsc -p tsconfig.main.json --noEmit",
     "typecheck:preload": "tsc -p tsconfig.preload.json --noEmit",
@@ -21,6 +25,35 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "build": {
+    "appId": "com.sebcun.slacksmith",
+    "productName": "SlackSmith",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    },
+    "dmg": {
+      "title": "SlackSmith ${version}"
+    }
+  },
   "dependencies": {
     "@slack/bolt": "^4.4.0"
   },
@@ -28,6 +61,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
     "electron": "^43.3.0",
+    "electron-builder": "^26.0.12",
     "esbuild": "^0.25.9",
     "eslint": "^10.8.1",
     "globals": "^17.9.0",

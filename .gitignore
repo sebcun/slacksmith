@@ -5,3 +5,4 @@ dist/
 .env
 .env.*
 **/data/slack-config.json
+release/
